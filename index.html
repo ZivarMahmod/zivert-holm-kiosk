@@ -1682,6 +1682,30 @@
           </div>
         </div>
 
+        <!-- Receipt tag password modal -->
+        <div class="admin-modal-overlay" id="receiptTagOverlay" aria-hidden="true">
+          <div class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="receiptTagTitle">
+            <div class="admin-modal-head">
+              <h3 id="receiptTagTitle">Ändra kvitto</h3>
+              <p>Ange kvitto-lösenord för att fortsätta.</p>
+            </div>
+            <input
+              class="admin-password"
+              id="receiptTagPasswordInput"
+              type="password"
+              inputmode="numeric"
+              autocomplete="off"
+              placeholder="Lösenord"
+              aria-label="Kvitto-lösenord"
+            />
+            <div class="admin-modal-error" id="receiptTagError"></div>
+            <div class="admin-modal-actions">
+              <button class="modal-btn cancel" id="receiptTagCancelBtn" type="button">Avbryt</button>
+              <button class="modal-btn" id="receiptTagConfirmBtn" type="button">Bekräfta</button>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -2923,24 +2947,58 @@
       `).join("");
     }
 
+    /* ── Receipt tag password modal ── */
+    let pendingReceiptTagId = null;
+    const receiptTagOverlay = document.getElementById("receiptTagOverlay");
+    const receiptTagPasswordInput = document.getElementById("receiptTagPasswordInput");
+    const receiptTagError = document.getElementById("receiptTagError");
+    const receiptTagCancelBtn = document.getElementById("receiptTagCancelBtn");
+    const receiptTagConfirmBtn = document.getElementById("receiptTagConfirmBtn");
+
+    function openReceiptTagModal(receiptId) {
+      pendingReceiptTagId = receiptId;
+      receiptTagPasswordInput.value = "";
+      receiptTagError.textContent = "";
+      receiptTagOverlay.classList.add("active");
+      receiptTagOverlay.setAttribute("aria-hidden", "false");
+      setTimeout(() => receiptTagPasswordInput.focus(), 30);
+    }
+    function closeReceiptTagModal() {
+      receiptTagOverlay.classList.remove("active");
+      receiptTagOverlay.setAttribute("aria-hidden", "true");
+      receiptTagError.textContent = "";
+      receiptTagPasswordInput.value = "";
+      pendingReceiptTagId = null;
+    }
+    function tryReceiptTag() {
+      if (receiptTagPasswordInput.value !== getReceiptDeletePassword()) {
+        receiptTagError.textContent = "Fel lösenord.";
+        receiptTagPasswordInput.select();
+        return;
+      }
+      const receipts = loadReceipts();
+      const receipt = receipts.find(r => r.id === pendingReceiptTagId);
+      if (!receipt) { closeReceiptTagModal(); return; }
+      receipt.tagged = !receipt.tagged;
+      localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
+      closeReceiptTagModal();
+      renderReceiptsAdmin();
+    }
+
+    receiptTagCancelBtn.addEventListener("click", closeReceiptTagModal);
+    receiptTagConfirmBtn.addEventListener("click", tryReceiptTag);
+    receiptTagPasswordInput.addEventListener("keydown", e => {
+      if (e.key === "Enter")  { e.preventDefault(); tryReceiptTag(); }
+      if (e.key === "Escape") closeReceiptTagModal();
+    });
+    receiptTagOverlay.addEventListener("click", e => {
+      if (e.target === receiptTagOverlay) closeReceiptTagModal();
+    });
+
     document.getElementById("receiptsList").addEventListener("click", (e) => {
       const btn = e.target.closest("[data-receipt-tag]");
       if (!btn) return;
-
-      const receiptId = btn.dataset.receiptTag;
-      const pw = prompt("Ange lösenord för att ändra kvitto:");
-      if (pw !== getReceiptDeletePassword()) {
-        alert("Fel lösenord.");
-        return;
-      }
-
-      const receipts = loadReceipts();
-      const receipt = receipts.find(r => r.id === receiptId);
-      if (!receipt) return;
-
-      receipt.tagged = !receipt.tagged;
-      localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-      renderReceiptsAdmin();
+      openReceiptTagModal(btn.dataset.receiptTag);
     });
 
     /* ── Inventory & Stock editor ── */
