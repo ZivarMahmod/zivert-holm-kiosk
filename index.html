@@ -3124,6 +3124,27 @@
       }, 2000);
     });
 
+    /* ── Pre-populate Inventory & Stock if empty ── */
+    function initInventoryAndStock() {
+      const allNames = [];
+      categories.forEach(cat => cat.items.forEach(item => allNames.push(item.name)));
+
+      const inv = loadInventory();
+      if (!Object.keys(inv).length) {
+        const newInv = {};
+        allNames.forEach(name => { newInv[name] = 0; });
+        saveInventory(newInv);
+      }
+
+      const stock = loadStock();
+      if (!Object.keys(stock).length) {
+        const newStock = {};
+        allNames.forEach(name => { newStock[name] = 0; });
+        saveStock(newStock);
+      }
+    }
+    initInventoryAndStock();
+
     /* ── Bootstrap ── */
     cleanupQtyState();
     renderOverview();
