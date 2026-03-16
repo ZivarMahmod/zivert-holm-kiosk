@@ -1331,8 +1331,8 @@
       "red-bull":        "images/redbull.png",
       "celsius":         "images/celsius.png",
       "monster":         "images/monster.png",
-      "lofbergs":        "images/lofbergs.png",
-      "nocco":           "images/Nocco.png",
+      "lofbergs":        "images/löfbergs.png",
+      "nocco":           "images/nocco.png",
       "kexchoklad":      "images/kexchoklad.png",
       "sportlunch":      "images/sportlunch.png",
       "pringles":        "images/pringles.png",
@@ -1688,7 +1688,7 @@
     function getProductImageHtml(itemId, itemName, catKey) {
       const src = PRODUCT_IMAGES[itemId];
       if (src) {
-        return `<img src="${escapeHtml(src)}" alt="${escapeHtml(itemName)}" style="height:80px;width:auto;object-fit:contain;" onerror="this.parentElement.innerHTML='<span class=\\"product-fallback-emoji\\">${getCategoryEmoji(catKey)}</span>'" />`;
+        return `<img src="${escapeHtml(src)}" alt="${escapeHtml(itemName)}" style="height:80px;width:auto;object-fit:contain;" />`;
       }
       return `<span class="product-fallback-emoji">${getCategoryEmoji(catKey)}</span>`;
     }
