@@ -306,8 +306,8 @@
       overflow-y: auto;
       padding: 0 28px 24px;
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 14px;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
       align-content: start;
     }
     .product-card {
@@ -318,14 +318,14 @@
       animation: fadeSlideIn 0.3s ease both;
     }
     .product-img-box {
-      height: 130px;
+      height: 100px;
       background: transparent;
       display: flex;
       align-items: center;
       justify-content: center;
     }
     .product-img-box img {
-      height: 110px;
+      height: 80px;
       width: auto;
       object-fit: contain;
       display: block;
@@ -337,17 +337,17 @@
       line-height: 1;
     }
     .product-info-box {
-      padding: 12px 14px;
+      padding: 10px 12px;
     }
     .product-name {
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 700;
       color: #fff;
       margin: 0;
       line-height: 1.15;
     }
     .product-price {
-      font-size: 18px;
+      font-size: 17px;
       font-style: italic;
       color: #ffd966;
       margin: 4px 0 0;
@@ -359,12 +359,13 @@
       margin-top: 10px;
     }
     .qty-btn {
-      width: 34px; height: 34px;
-      background: rgba(255,255,255,.12);
-      border: 1px solid rgba(255,255,255,.15);
+      width: 44px; height: 44px;
+      min-width: 44px; min-height: 44px;
+      background: rgba(255,255,255,.25);
+      border: 2px solid rgba(255,255,255,.4);
       color: #fff;
-      border-radius: 8px;
-      font-size: 22px;
+      border-radius: 10px;
+      font-size: 28px;
       line-height: 1;
       cursor: pointer;
       display: flex;
@@ -373,13 +374,13 @@
       padding: 0;
       transition: background .12s;
     }
-    .qty-btn:hover { background: rgba(255,255,255,.22); }
+    .qty-btn:hover { background: rgba(255,255,255,.38); }
     .qty-btn:active { opacity: .8; }
     .qty-val {
-      font-size: 22px;
+      font-size: 24px;
       font-weight: 700;
       color: #fff;
-      min-width: 28px;
+      min-width: 30px;
       text-align: center;
     }
     .empty-text {
