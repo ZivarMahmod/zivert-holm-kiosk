@@ -352,6 +352,12 @@
       color: #ffd966;
       margin: 4px 0 0;
     }
+    .product-note {
+      font-size: 14px;
+      font-style: italic;
+      color: rgba(255,255,255,.45);
+      margin-top: 3px;
+    }
     .qty-row {
       display: flex;
       align-items: center;
@@ -1317,42 +1323,31 @@
 
     /* ── Product images ── */
     const PRODUCT_IMAGES = {
-      "coca-cola-zero":      "images/cola-zero.png",
-      "pepsi-max":           "images/pepsi-max.png",
-      "pepsi-regular":       "images/pepsi-max.png",
-      "fanta-orange":        "images/fanta.png",
-      "trocadero":           "images/trocadero.png",
-      "bonaqua":             "images/bonaqua.png",
-      "red-bull":            "images/redbull.png",
-      "celsius-strawberry":  "images/celsius.png",
-      "celsius-kiwi":        "images/celsius.png",
-      "celsius-citron":      "images/celsius.png",
-      "monster":             "images/monster.png",
-      "lofbergs-espresso":   "images/lofbergs.png",
-      "lofbergs-cappuccino": "images/lofbergs.png",
-      "nocco-raspberry":     "images/Nocco.png",
-      "nocco-ramonade":      "images/Nocco.png",
-      "kexchoklad":          "images/kexchoklad.png",
-      "sportlunch":          "images/sportlunch.png",
-      "pringles-sourcream":  "images/pringles.png",
-      "pringles-original":   "images/pringles.png",
-      "lantchips":           "images/lantchips.png",
-      "flapjack":            "images/flapjack.png",
-      "corny-chocolate":     "images/cornybigg.png",
-      "corny-salted":        "images/cornybigg.png",
-      "punschrulle":         "images/punchrulle.png",
-      "delicatoboll":        "images/delicatoboll.png",
-      "nudlar-shin":         "images/nudlar.png",
-      "kimchi":              "images/nudlar.png",
-      "risifrutti-jordgubb": "images/risifrutti.png",
-      "risifrutti-hallon":   "images/risifrutti.png",
-      "arla-choklad":        "images/Arla-pudding.png",
-      "arla-vanilla":        "images/Arla-pudding.png",
-      "proteinbar-choklad":  "images/proteinbar.png",
-      "proteinbar-toffee":   "images/proteinbar.png",
-      "billys-original":     "images/billys-pan-pizza.png",
-      "billys-veggie":       "images/billys-pan-pizza.png",
-      "billys-hawaii":       "images/billys-pan-pizza.png"
+      "coca-cola-zero":  "images/cola-zero.png",
+      "pepsi-max":       "images/pepsi-max.png",
+      "fanta-orange":    "images/fanta.png",
+      "trocadero":       "images/trocadero.png",
+      "bonaqua":         "images/bonaqua.png",
+      "red-bull":        "images/redbull.png",
+      "celsius":         "images/celsius.png",
+      "monster":         "images/monster.png",
+      "lofbergs":        "images/lofbergs.png",
+      "nocco":           "images/Nocco.png",
+      "kexchoklad":      "images/kexchoklad.png",
+      "sportlunch":      "images/sportlunch.png",
+      "pringles":        "images/pringles.png",
+      "lantchips":       "images/lantchips.png",
+      "flapjack":        "images/flapjack.png",
+      "corny":           "images/cornybigg.png",
+      "punschrulle":     "images/punchrulle.png",
+      "delicatoboll":    "images/delicatoboll.png",
+      "nudlar":          "images/nudlar.png",
+      "risifrutti":      "images/risifrutti.png",
+      "arla-pudding":    "images/Arla-pudding.png",
+      "proteinbar":      "images/proteinbar.png",
+      "billys-original": "images/billys-pan-pizza.png",
+      "billys-veggie":   "images/billys-pan-pizza.png",
+      "billys-hawaii":   "images/billys-pan-pizza.png"
     };
 
     const CATEGORY_EMOJI = {
@@ -1369,59 +1364,56 @@
     /* ── Default categories ── */
     const DEFAULT_CATEGORIES = [
       {
-        key: "dryck", title: "Dryck", subtitle: "Energi, kaffe & läsk",
+        key: "dryck",
+        title: "Dryck",
+        subtitle: "Dryck, energi & kaffe",
         items: [
-          { id: "coca-cola-zero",      name: "Coca-Cola Zero",               price: 15 },
-          { id: "pepsi-max",           name: "Pepsi Max",                    price: 15 },
-          { id: "pepsi-regular",       name: "Pepsi 33cl",                   price: 15 },
-          { id: "fanta-orange",        name: "Fanta Orange",                 price: 15 },
-          { id: "trocadero",           name: "Trocadero",                    price: 15 },
-          { id: "bonaqua",             name: "Bonaqua 50cl",                 price: 15 },
-          { id: "red-bull",            name: "Red Bull",                     price: 22 },
-          { id: "celsius-strawberry",  name: "Celsius Strawberry",           price: 25 },
-          { id: "celsius-kiwi",        name: "Celsius Kiwi-Lime",            price: 25 },
-          { id: "celsius-citron",      name: "Celsius Citrus",               price: 25 },
-          { id: "monster",             name: "Monster",                      price: 22 },
-          { id: "lofbergs-espresso",   name: "Löfbergs Ice Espresso + Milk", price: 30 },
-          { id: "lofbergs-cappuccino", name: "Löfbergs Ice Cappuccino",      price: 30 },
-          { id: "nocco-raspberry",     name: "Nocco Raspberry",              price: 25 },
-          { id: "nocco-ramonade",      name: "Nocco Ramonade",               price: 25 }
+          { id: "coca-cola-zero", name: "Coca-Cola Zero", price: 15 },
+          { id: "pepsi-max", name: "Pepsi Max", price: 15 },
+          { id: "fanta-orange", name: "Fanta Orange", price: 15 },
+          { id: "trocadero", name: "Trocadero", price: 15 },
+          { id: "bonaqua", name: "Bonaqua", price: 15, note: "Välj smak vid kylen" },
+          { id: "red-bull", name: "Red Bull", price: 22 },
+          { id: "celsius", name: "Celsius", price: 25, note: "Välj smak vid kylen" },
+          { id: "monster", name: "Monster Energy", price: 22 },
+          { id: "lofbergs", name: "Löfbergs Ice", price: 30, note: "Välj smak vid kylen" },
+          { id: "nocco", name: "Nocco", price: 25, note: "Välj smak vid kylen" }
         ]
       },
       {
-        key: "snacks", title: "Snacks", subtitle: "Choklad, chips & bars",
+        key: "snacks",
+        title: "Snacks",
+        subtitle: "Snacks, choklad & bars",
         items: [
-          { id: "kexchoklad",         name: "Kexchoklad",                   price: 15 },
-          { id: "sportlunch",         name: "Sportlunch Dubbel",            price: 18 },
-          { id: "pringles-sourcream", name: "Pringles Sourcream & Onion",   price: 18 },
-          { id: "pringles-original",  name: "Pringles Original",            price: 18 },
-          { id: "lantchips",          name: "Svenska Lantchips Saltade",    price: 20 },
-          { id: "flapjack",           name: "Flapjack",                     price: 18 },
-          { id: "corny-chocolate",    name: "Corny Big Chocolate",          price: 15 },
-          { id: "corny-salted",       name: "Corny Big Salted Caramel",     price: 15 },
-          { id: "punschrulle",        name: "Punschrulle",                  price: 12 },
-          { id: "delicatoboll",       name: "Delicatoboll",                 price: 12 },
-          { id: "nudlar-shin",        name: "Shin Ramyun nudlar",           price: 20 },
-          { id: "kimchi",             name: "Kimchi nudlar",                price: 20 }
+          { id: "kexchoklad", name: "Kexchoklad", price: 15 },
+          { id: "sportlunch", name: "Sportlunch Dubbel", price: 18 },
+          { id: "pringles", name: "Pringles", price: 18, note: "Välj smak vid kylen" },
+          { id: "lantchips", name: "Svenska Lantchips", price: 20 },
+          { id: "flapjack", name: "Flapjack", price: 18 },
+          { id: "corny", name: "Corny Big", price: 15, note: "Välj smak vid kylen" },
+          { id: "punschrulle", name: "Punschrulle", price: 12 },
+          { id: "delicatoboll", name: "Delicatoboll", price: 12 },
+          { id: "nudlar", name: "Nudlar", price: 20, note: "Välj smak vid kylen" }
         ]
       },
       {
-        key: "mellanmal", title: "Mellanmål", subtitle: "Snabbt & enkelt",
+        key: "mellanmal",
+        title: "Mellanmål",
+        subtitle: "Snabbt och enkelt",
         items: [
-          { id: "risifrutti-jordgubb", name: "Risifrutti Jordgubb",         price: 18 },
-          { id: "risifrutti-hallon",   name: "Risifrutti Hallon",           price: 18 },
-          { id: "arla-choklad",        name: "Arla Chokladpudding",         price: 18 },
-          { id: "arla-vanilla",        name: "Arla Vaniljpudding",          price: 18 },
-          { id: "proteinbar-choklad",  name: "Proteinbar Choklad",          price: 20 },
-          { id: "proteinbar-toffee",   name: "Proteinbar Toffee",           price: 20 }
+          { id: "risifrutti", name: "Risifrutti", price: 18, note: "Välj smak vid kylen" },
+          { id: "arla-pudding", name: "Arla Proteinpudding", price: 18, note: "Välj smak vid kylen" },
+          { id: "proteinbar", name: "Proteinbar", price: 20, note: "Välj smak vid kylen" }
         ]
       },
       {
-        key: "mat", title: "Mat", subtitle: "Fryst — finns i 4B",
+        key: "mat",
+        title: "Mat",
+        subtitle: "Fryst men snabbt (FINNS I 4B)",
         items: [
           { id: "billys-original", name: "Billys Pan Pizza Original", price: 25 },
-          { id: "billys-veggie",   name: "Billys Pan Pizza Veggie",   price: 25 },
-          { id: "billys-hawaii",   name: "Billys Pan Pizza Hawaii",   price: 25 }
+          { id: "billys-veggie", name: "Billys Pan Pizza Veggie", price: 25 },
+          { id: "billys-hawaii", name: "Billys Pan Pizza Hawaii", price: 25 }
         ]
       }
     ];
@@ -1509,7 +1501,10 @@
               const name = String(item.name || "").trim() || `Produkt ${ii + 1}`;
               const price = Number.isFinite(Number(item.price)) && Number(item.price) >= 0
                 ? Math.round(Number(item.price)) : 0;
-              return { id: String(item.id || "") || generateId(key), name, price };
+              const note = item.note ? String(item.note).trim() : undefined;
+              const obj = { id: String(item.id || "") || generateId(key), name, price };
+              if (note) obj.note = note;
+              return obj;
             }).filter(Boolean)
           : [];
         return { key, title, subtitle, items };
@@ -1690,10 +1685,10 @@
     }
 
     /* ── Category / Product rendering ── */
-    function getProductImageHtml(itemId, catKey, index) {
+    function getProductImageHtml(itemId, itemName, catKey) {
       const src = PRODUCT_IMAGES[itemId];
       if (src) {
-        return `<img src="${escapeHtml(src)}" alt="" style="animation-delay:${index * 0.15}s" onerror="this.parentElement.innerHTML='<span class=\\"product-fallback-emoji\\">${getCategoryEmoji(catKey)}</span>'" />`;
+        return `<img src="${escapeHtml(src)}" alt="${escapeHtml(itemName)}" style="height:80px;width:auto;object-fit:contain;" onerror="this.parentElement.innerHTML='<span class=\\"product-fallback-emoji\\">${getCategoryEmoji(catKey)}</span>'" />`;
       }
       return `<span class="product-fallback-emoji">${getCategoryEmoji(catKey)}</span>`;
     }
@@ -1710,10 +1705,11 @@
         const qty = getQty(cat.key, item.id);
         return `
           <div class="product-card" style="animation-delay:${index * 0.06}s">
-            <div class="product-img-box">${getProductImageHtml(item.id, cat.key, index)}</div>
+            <div class="product-img-box">${getProductImageHtml(item.id, item.name, cat.key)}</div>
             <div class="product-info-box">
               <div class="product-name">${escapeHtml(item.name)}</div>
               <div class="product-price">${escapeHtml(item.price)} kr</div>
+              ${item.note ? `<div class="product-note">${escapeHtml(item.note)}</div>` : ""}
               <div class="qty-row">
                 <button class="qty-btn" type="button"
                   data-action="minus"
