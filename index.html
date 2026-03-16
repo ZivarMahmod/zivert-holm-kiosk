@@ -1037,6 +1037,141 @@
     .catalog-editor::-webkit-scrollbar-track {
       background: rgba(255,255,255,.03);
     }
+    /* ── Wish feature ── */
+    .wish-row {
+      display: flex;
+      justify-content: center;
+      margin-top: 12px;
+    }
+    .wish-trigger-btn {
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 14px;
+      color: rgba(255,255,255,.8);
+      font-family: Georgia, serif;
+      font-size: 22px;
+      padding: 12px 32px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .wish-trigger-btn:hover {
+      background: rgba(255,255,255,.14);
+    }
+    .wish-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 40;
+      padding: 24px;
+    }
+    .wish-overlay.active {
+      display: flex;
+    }
+    .wish-modal {
+      width: 100%;
+      max-width: 700px;
+      background: linear-gradient(160deg,#1e1b3a,#2d2b50);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 22px;
+      padding: 28px;
+      display: grid;
+      gap: 18px;
+      box-shadow: 0 24px 56px rgba(0,0,0,.5);
+    }
+    .wish-modal-head h3 {
+      font-size: 36px;
+      font-style: italic;
+      color: #fff;
+      margin: 0;
+    }
+    .wish-modal-head p {
+      font-size: 18px;
+      color: rgba(255,255,255,.6);
+      margin: 6px 0 0;
+    }
+    .wish-cat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .wish-cat-btn {
+      background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 12px;
+      color: #fff;
+      font-family: Georgia, serif;
+      font-size: 18px;
+      padding: 14px 10px;
+      cursor: pointer;
+      text-align: center;
+      transition: background .12s;
+    }
+    .wish-cat-btn:hover {
+      background: rgba(255,255,255,.14);
+    }
+    .wish-cat-btn.selected {
+      background: rgba(108,99,255,.35);
+      border-color: rgba(108,99,255,.6);
+    }
+    .wish-selected-cat {
+      font-size: 16px;
+      color: rgba(255,255,255,.6);
+      font-style: italic;
+    }
+    .wish-textarea {
+      width: 100%;
+      height: 100px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 12px;
+      color: #fff;
+      font-family: Georgia, serif;
+      font-size: 20px;
+      padding: 14px 16px;
+      resize: none;
+      outline: none;
+      margin-top: 8px;
+    }
+    .wish-modal-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .wish-cancel-btn {
+      background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 12px;
+      color: rgba(255,255,255,.7);
+      font-family: Georgia, serif;
+      font-size: 22px;
+      padding: 12px;
+      cursor: pointer;
+    }
+    .wish-send-btn {
+      background: linear-gradient(135deg,#6c63ff,#3b82f6);
+      border: none;
+      border-radius: 12px;
+      color: #fff;
+      font-family: Georgia, serif;
+      font-size: 22px;
+      font-weight: 700;
+      padding: 12px;
+      cursor: pointer;
+      opacity: .5;
+    }
+    .wish-send-btn:not(:disabled) {
+      opacity: 1;
+    }
+    .wish-confirm {
+      font-size: 22px;
+      color: #7dd3fc;
+      text-align: center;
+      font-style: italic;
+    }
+
   </style>
 </head>
 <body>
@@ -1075,6 +1210,9 @@
                   <h2 class="section-title" style="font-size:36px;">Just nu</h2>
                   <div class="offers-grid" id="offersGrid"></div>
                 </div>
+                <div class="wish-row">
+                  <button class="wish-trigger-btn" id="wishTriggerBtn" type="button">💌 Önska en produkt</button>
+                </div>
               </div>
             </section>
 
@@ -1103,6 +1241,7 @@
                     <div class="admin-nav-item" data-section="erbjudanden">🏷 Erbjudanden</div>
                     <div class="admin-nav-item" data-section="produkter">📦 Produkter</div>
                     <div class="admin-nav-item" data-section="installningar">⚙ Inställningar</div>
+                    <div class="admin-nav-item" data-section="wishes">💌 Önskningar</div>
                   </nav>
 
                   <!-- Content -->
@@ -1219,6 +1358,13 @@
                       </div>
                     </div>
 
+                    <!-- Önskningar -->
+                    <div class="admin-section" id="adminSectionWishes">
+                      <h3 class="admin-section-title">Önskningar från kunder</h3>
+                      <div id="wishList"></div>
+                      <button class="report-action-btn danger" id="clearWishesBtn" type="button" style="margin-top:12px;">Rensa alla önskningar</button>
+                    </div>
+
                   </div>
                 </div>
               </div>
@@ -1247,6 +1393,37 @@
             </div>
           </aside>
 
+        </div>
+
+        <!-- Wish modal -->
+        <div class="wish-overlay" id="wishOverlay" aria-hidden="true">
+          <div class="wish-modal">
+            <div class="wish-modal-head">
+              <h3>Önska en produkt</h3>
+              <p>Välj kategori och berätta vad du önskar.</p>
+            </div>
+
+            <div class="wish-cat-grid" id="wishCatGrid"></div>
+
+            <div class="wish-input-wrap" id="wishInputWrap" style="display:none;">
+              <div class="wish-selected-cat" id="wishSelectedCat"></div>
+              <textarea
+                class="wish-textarea"
+                id="wishTextarea"
+                placeholder="Vad önskar du? T.ex. Oatly Havredryck..."
+                maxlength="200"
+              ></textarea>
+            </div>
+
+            <div class="wish-modal-actions">
+              <button class="wish-cancel-btn" id="wishCancelBtn" type="button">Avbryt</button>
+              <button class="wish-send-btn" id="wishSendBtn" type="button" disabled>Skicka önskan</button>
+            </div>
+
+            <div class="wish-confirm" id="wishConfirm" style="display:none;">
+              ✅ Tack! Din önskan är skickad.
+            </div>
+          </div>
         </div>
 
         <!-- Hidden admin trigger -->
@@ -1320,6 +1497,7 @@
     const CATALOG_STORAGE_KEY = "zivert-holm-catalog-v3";
     const OFFERS_STORAGE_KEY = "zivert-holm-offers-v1";
     const SETTINGS_STORAGE_KEY = "zivert-holm-settings-v1";
+    const WISHES_STORAGE_KEY = "zivert-holm-wishes-v1";
 
     /* ── Product images ── */
     const PRODUCT_IMAGES = {
@@ -1648,6 +1826,7 @@
         if (section === "produkter") renderCatalogEditor();
         if (section === "erbjudanden") loadOffersIntoEditor();
         if (section === "installningar") loadSettingsIntoEditor();
+        if (section === "wishes") renderWishes();
       });
     });
 
@@ -2229,6 +2408,110 @@
       if (action === "add-item")        addItemToCategory(catKey);
       if (action === "remove-item")     removeItemFromCategory(catKey, itemId);
       if (action === "remove-category") removeCategory(catKey);
+    });
+
+    /* ── Wish feature ── */
+    function loadWishes() {
+      try {
+        const raw = localStorage.getItem(WISHES_STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch(e) { return []; }
+    }
+
+    function saveWish(category, text) {
+      const wishes = loadWishes();
+      wishes.push({
+        time: new Date().toISOString(),
+        category,
+        text
+      });
+      localStorage.setItem(WISHES_STORAGE_KEY, JSON.stringify(wishes));
+    }
+
+    let selectedWishCategory = null;
+
+    function openWishModal() {
+      selectedWishCategory = null;
+      document.getElementById("wishTextarea").value = "";
+      document.getElementById("wishInputWrap").style.display = "none";
+      document.getElementById("wishConfirm").style.display = "none";
+      document.getElementById("wishSendBtn").disabled = true;
+      document.getElementById("wishSendBtn").style.display = "";
+      document.getElementById("wishCancelBtn").textContent = "Avbryt";
+
+      const grid = document.getElementById("wishCatGrid");
+      grid.innerHTML = categories.map(cat => `
+        <button class="wish-cat-btn" data-wish-cat="${escapeHtml(cat.key)}" type="button">
+          ${escapeHtml(cat.title)}
+        </button>
+      `).join("");
+
+      document.getElementById("wishOverlay").classList.add("active");
+      document.getElementById("wishOverlay").setAttribute("aria-hidden","false");
+    }
+
+    function closeWishModal() {
+      document.getElementById("wishOverlay").classList.remove("active");
+      document.getElementById("wishOverlay").setAttribute("aria-hidden","true");
+    }
+
+    document.getElementById("wishTriggerBtn").addEventListener("click", openWishModal);
+    document.getElementById("wishCancelBtn").addEventListener("click", closeWishModal);
+
+    document.getElementById("wishCatGrid").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-wish-cat]");
+      if (!btn) return;
+      document.querySelectorAll(".wish-cat-btn").forEach(b => b.classList.remove("selected"));
+      btn.classList.add("selected");
+      selectedWishCategory = btn.dataset.wishCat;
+      const cat = categories.find(c => c.key === selectedWishCategory);
+      document.getElementById("wishSelectedCat").textContent = `Kategori: ${cat ? cat.title : ""}`;
+      document.getElementById("wishInputWrap").style.display = "block";
+      checkWishReady();
+    });
+
+    document.getElementById("wishTextarea").addEventListener("input", checkWishReady);
+
+    function checkWishReady() {
+      const text = document.getElementById("wishTextarea").value.trim();
+      document.getElementById("wishSendBtn").disabled = !(selectedWishCategory && text.length > 0);
+    }
+
+    document.getElementById("wishSendBtn").addEventListener("click", () => {
+      const text = document.getElementById("wishTextarea").value.trim();
+      if (!selectedWishCategory || !text) return;
+      const cat = categories.find(c => c.key === selectedWishCategory);
+      saveWish(cat ? cat.title : selectedWishCategory, text);
+      document.getElementById("wishSendBtn").style.display = "none";
+      document.getElementById("wishCancelBtn").textContent = "Stäng";
+      document.getElementById("wishConfirm").style.display = "block";
+      setTimeout(() => closeWishModal(), 2500);
+    });
+
+    document.getElementById("wishOverlay").addEventListener("click", (e) => {
+      if (e.target === document.getElementById("wishOverlay")) closeWishModal();
+    });
+
+    function renderWishes() {
+      const wishes = loadWishes();
+      const container = document.getElementById("wishList");
+      if (!wishes.length) {
+        container.innerHTML = '<div class="report-empty">Inga önskningar inkomna ännu.</div>';
+        return;
+      }
+      container.innerHTML = wishes.slice().reverse().map(w => `
+        <div class="report-group" style="margin-bottom:8px;">
+          <div style="font-size:16px;color:rgba(255,255,255,.5);margin-bottom:4px;">${new Date(w.time).toLocaleString("sv-SE")}</div>
+          <div style="font-size:20px;color:#ffd966;font-style:italic;">${escapeHtml(w.category)}</div>
+          <div style="font-size:22px;color:#fff;margin-top:4px;">${escapeHtml(w.text)}</div>
+        </div>
+      `).join("");
+    }
+
+    document.getElementById("clearWishesBtn").addEventListener("click", () => {
+      localStorage.removeItem(WISHES_STORAGE_KEY);
+      renderWishes();
     });
 
     /* ── Bootstrap ── */
