@@ -3232,12 +3232,28 @@
       if (!cart.length) {
         cartItems.innerHTML = `<div class="cart-empty">Inga produkter valda ännu.</div>`;
       } else {
-        cartItems.innerHTML = cart.map(it => `
-          <div class="cart-row">
-            <span>${escapeHtml(it.qty)} × ${escapeHtml(it.name)}${it.ärErbjudande ? ' <span style="background:#f0c040;color:#322D29;font-size:10px;padding:2px 6px;border-radius:6px;font-weight:bold;margin-left:4px;">🏷 Erbjudande</span>' : ''}</span>
-            <strong>${escapeHtml(it.sum)} kr</strong>
-          </div>
-        `).join("");
+        cartItems.innerHTML = cart.map(it => {
+          if (it.ärErbjudande) {
+            return `
+              <div class="cart-row" style="background:rgba(240,192,64,.08);border:1px solid rgba(240,192,64,.3);border-radius:10px;padding:12px;margin-bottom:8px;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+                  <div style="flex:1;">
+                    <div style="font-size:14px;font-weight:bold;color:#2c3e35;margin-bottom:4px;">${escapeHtml(it.qty)} × ${escapeHtml(it.name)}</div>
+                    <span style="display:inline-block;background:#f0c040;color:#322D29;font-size:11px;padding:4px 8px;border-radius:6px;font-weight:bold;">🏷 Paket</span>
+                  </div>
+                  <strong style="color:#c47a3a;font-size:16px;white-space:nowrap;">${escapeHtml(it.sum)} kr</strong>
+                </div>
+              </div>
+            `;
+          } else {
+            return `
+              <div class="cart-row">
+                <span>${escapeHtml(it.qty)} × ${escapeHtml(it.name)}</span>
+                <strong>${escapeHtml(it.sum)} kr</strong>
+              </div>
+            `;
+          }
+        }).join("");
       }
       itemCount.textContent = totalItems;
       totalAmount.textContent = formatKr(total);
