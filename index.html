@@ -3249,32 +3249,29 @@
       if (!cart.length) {
         cartItems.innerHTML = `<div class="cart-empty">Inga produkter valda ännu.</div>`;
       } else {
-        // Stack items by ID
+        // Group items by ID to show stack count
         const grouped = new Map();
         cart.forEach(it => {
-          const key = it.ärErbjudande ? `offer-${it.itemId}` : `${it.categoryKey}-${it.itemId}`;
+          const key = it.ärErbjudande ? `offer-${it.itemId}` : `${it.categoryKey}__${it.itemId}`;
           if (!grouped.has(key)) {
-            grouped.set(key, { ...it, stackCount: 0 });
+            grouped.set(key, { ...it, count: 0 });
           }
-          const item = grouped.get(key);
-          item.stackCount += 1;
-          item.qty = item.qty;
-          item.sum = (item.price || 0) * item.qty;
+          grouped.get(key).count += 1;
         });
 
         cartItems.innerHTML = Array.from(grouped.values()).map(it => {
-          const isMultiple = it.qty > 1;
           const tagHtml = it.ärErbjudande ? `<span style="display:inline-block;background:#f0c040;color:#322D29;font-size:11px;padding:3px 8px;border-radius:4px;font-weight:bold;">🏷 Paket</span>` : '';
+          const countDisplay = it.count > 1 ? `<span style="font-size:12px;color:#6b7c74;margin-left:6px;">(${it.count} st)</span>` : '';
           return `
             <div class="cart-row">
               <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;">
                 <div style="flex:1;">
-                  <div style="margin-bottom:${tagHtml ? '4px' : '0'};">${escapeHtml(it.qty)} × ${escapeHtml(it.name)}</div>
+                  <div style="margin-bottom:${tagHtml ? '4px' : '0'};">${escapeHtml(it.qty)} × ${escapeHtml(it.name)}${countDisplay}</div>
                   ${tagHtml}
                 </div>
                 <div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
-                  <button onclick="${it.ärErbjudande ? `updateOfferQty('${it.itemId}', -1)` : `updateQty('${escapeHtml(it.categoryKey)}', '${escapeHtml(it.itemId)}', -1)`}" style="width:24px;height:24px;border:1px solid rgba(0,0,0,.1);background:#f0f4f2;border-radius:4px;color:#2c3e35;font-weight:bold;cursor:pointer;font-size:12px;">−</button>
-                  <button onclick="${it.ärErbjudande ? `updateOfferQty('${it.itemId}', 1)` : `updateQty('${escapeHtml(it.categoryKey)}', '${escapeHtml(it.itemId)}', 1)`}" style="width:24px;height:24px;border:1px solid rgba(0,0,0,.1);background:#f0f4f2;border-radius:4px;color:#2c3e35;font-weight:bold;cursor:pointer;font-size:12px;">+</button>
+                  <button onclick="${it.ärErbjudande ? `updateOfferQty('${it.itemId}', -1)` : `updateQty('${it.categoryKey}', '${it.itemId}', -1)`}" style="width:24px;height:24px;border:1px solid rgba(0,0,0,.1);background:#f0f4f2;border-radius:4px;color:#2c3e35;font-weight:bold;cursor:pointer;font-size:12px;font-size:16px;">−</button>
+                  <button onclick="${it.ärErbjudande ? `updateOfferQty('${it.itemId}', 1)` : `updateQty('${it.categoryKey}', '${it.itemId}', 1)`}" style="width:24px;height:24px;border:1px solid rgba(0,0,0,.1);background:#f0f4f2;border-radius:4px;color:#2c3e35;font-weight:bold;cursor:pointer;font-size:12px;font-size:16px;">+</button>
                   <strong style="font-size:14px;min-width:40px;text-align:right;">${escapeHtml(it.sum)} kr</strong>
                 </div>
               </div>
