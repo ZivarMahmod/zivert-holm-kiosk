@@ -1517,31 +1517,27 @@
 
                     <!-- Lager & Stock -->
                     <div class="admin-section" id="adminSectionInventory">
-                      <h3 class="admin-section-title">Lager & Stock</h3>
-
-                      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
-
-                        <!-- LAGER -->
-                        <div>
-                          <div style="font-size:20px;font-style:italic;color:#ffd966;margin-bottom:10px;">📦 Totalt lager — inköpt</div>
-                          <div style="font-size:13px;color:rgba(255,255,255,.45);margin-bottom:12px;">Fyll i när du köpt hem varor. Påfyllning till Stock minskar härifrån.</div>
-                          <div id="inventoryEditor"></div>
-                          <button class="catalog-small-btn" id="addInventoryRowBtn" type="button" style="margin-top:10px;">+ Lägg till rad</button>
-                        </div>
-
-                        <!-- STOCK -->
-                        <div>
-                          <div style="font-size:20px;font-style:italic;color:#6c63ff;margin-bottom:10px;">🏪 Stock — framme vid kiosken</div>
-                          <div style="font-size:13px;color:rgba(255,255,255,.45);margin-bottom:12px;">Fyll på från Lager. Köp minskar härifrån. Varning under 10 kvar.</div>
-                          <div id="stockEditor"></div>
-                          <button class="catalog-small-btn" id="addStockRowBtn" type="button" style="margin-top:10px;">+ Lägg till rad</button>
-                        </div>
-
+                      <h3 class="admin-section-title">📦 Lager & Stock</h3>
+                      <div style="font-size:13px;color:rgba(255,255,255,.45);margin-bottom:12px;">
+                        <b>Lager</b> = totalt inköpt &nbsp;|&nbsp; <b>Stock</b> = framme vid kiosken (minskas vid köp) &nbsp;|&nbsp; <b>Fyll på</b> flyttar från Lager → Stock.
                       </div>
 
-                      <div class="save-bar" style="display:flex;align-items:center;gap:12px;">
+                      <!-- Column headers -->
+                      <div style="display:grid;grid-template-columns:1fr 90px 90px 100px 40px;gap:8px;margin-bottom:6px;padding:0 2px;">
+                        <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,.6);">Produkt</span>
+                        <span style="font-size:13px;font-weight:700;color:#ffd966;text-align:center;">Lager</span>
+                        <span style="font-size:13px;font-weight:700;color:#6c63ff;text-align:center;">Stock</span>
+                        <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,.6);text-align:center;">Fyll på</span>
+                        <span></span>
+                      </div>
+
+                      <div id="inventoryEditor"></div>
+
+                      <button class="catalog-small-btn" id="addInventoryRowBtn" type="button" style="margin-top:10px;">+ Lägg till produkt</button>
+
+                      <div class="save-bar" style="display:flex;align-items:center;gap:12px;margin-top:16px;">
                         <span id="inventorySaveStatus" style="font-size:16px;color:rgba(255,255,255,.5);">Spara för att uppdatera.</span>
-                        <button class="admin-btn" id="saveInventoryBtn" type="button">Spara lager & stock</button>
+                        <button class="admin-btn" id="saveInventoryBtn" type="button">Spara lager</button>
                       </div>
                     </div>
 
@@ -1734,7 +1730,6 @@
     const RECEIPT_STORAGE_KEY = "zivert-holm-receipts-v1";
     const RECEIPT_COUNTER_KEY = "zivert-holm-receipt-counter-v1";
     const INVENTORY_STORAGE_KEY = "zivert-holm-inventory-v1";
-    const STOCK_STORAGE_KEY = "zivert-holm-stock-v1";
     const RECEIPT_DELETE_PASSWORD_KEY = "zivert-holm-receipt-delete-pw-v1";
     const DEFAULT_RECEIPT_DELETE_PASSWORD = "072940";
 
@@ -1933,16 +1928,6 @@
       localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(inv));
     }
 
-    function loadStock() {
-      try {
-        const raw = localStorage.getItem(STOCK_STORAGE_KEY);
-        return raw ? JSON.parse(raw) : {};
-      } catch(e) { return {}; }
-    }
-    function saveStock(stock) {
-      localStorage.setItem(STOCK_STORAGE_KEY, JSON.stringify(stock));
-    }
-
     function getReceiptDeletePassword() {
       return localStorage.getItem(RECEIPT_DELETE_PASSWORD_KEY) || DEFAULT_RECEIPT_DELETE_PASSWORD;
     }
@@ -2123,7 +2108,7 @@
         if (section === "installningar") loadSettingsIntoEditor();
         if (section === "wishes") renderWishes();
         if (section === "receipts") renderReceiptsAdmin();
-        if (section === "inventory") { renderInventoryEditor(); renderStockEditor(); }
+        if (section === "inventory") { initInventoryIfEmpty(); renderInventoryEditor(); }
       });
     });
 
@@ -2300,15 +2285,15 @@
       });
       saveSales(sales);
 
-      // Minska stock
-      const stock = loadStock();
+      // Minska stock i inventory
+      const inv = loadInventory();
       cart.forEach(item => {
         const key = item.name;
-        if (stock[key] !== undefined) {
-          stock[key] = Math.max(0, stock[key] - item.qty);
+        if (inv[key] && typeof inv[key] === "object" && typeof inv[key].stock === "number") {
+          inv[key].stock = Math.max(0, inv[key].stock - item.qty);
         }
       });
-      saveStock(stock);
+      saveInventory(inv);
     }
 
     function clearCartState() {
@@ -3117,24 +3102,47 @@
       openReceiptTagModal(btn.dataset.receiptTag, btn.dataset.tagType);
     });
 
-    /* ── Inventory & Stock editor ── */
+    /* ── Inventory editor (unified Lager & Stock) ── */
     function getProductNames() {
-      const names = new Set();
-      categories.forEach(cat => cat.items.forEach(item => names.add(item.name)));
+      const names = [];
+      categories.forEach(cat => cat.items.forEach(item => names.push(item.name)));
       return names;
     }
 
-    function getMatchStatus(name) {
-      if (!name || !name.trim()) return "empty";
-      const names = getProductNames();
-      return names.has(name.trim()) ? "match" : "nomatch";
-    }
+    function initInventoryIfEmpty() {
+      const inv = loadInventory();
+      const allNames = getProductNames();
+      const nameSet = new Set(allNames);
 
-    function matchStatusHtml(name) {
-      const status = getMatchStatus(name);
-      if (status === "empty") return "";
-      if (status === "match") return `<span style="font-size:12px;color:#4ade80;">✅ Kopplad till: ${escapeHtml(name)}</span>`;
-      return `<span style="font-size:12px;color:#fbbf24;">⚠️ Ingen match — kontrollera stavning</span>`;
+      // Detect old format (simple numbers) or old ID-based keys
+      function needsMigration(data) {
+        const keys = Object.keys(data);
+        if (!keys.length) return true;
+        // Old ID-based keys (none match product names)
+        const matchCount = keys.filter(k => nameSet.has(k)).length;
+        if (matchCount === 0) return true;
+        // Old format: values are plain numbers instead of {lager, stock}
+        for (const v of Object.values(data)) {
+          if (typeof v === "number") return true;
+        }
+        return false;
+      }
+
+      if (needsMigration(inv)) {
+        const newInv = {};
+        allNames.forEach(name => { newInv[name] = { lager: 0, stock: 0 }; });
+        saveInventory(newInv);
+      } else {
+        // Add any new products that don't exist yet
+        let changed = false;
+        allNames.forEach(name => {
+          if (!inv[name]) {
+            inv[name] = { lager: 0, stock: 0 };
+            changed = true;
+          }
+        });
+        if (changed) saveInventory(inv);
+      }
     }
 
     function renderInventoryEditor() {
@@ -3142,194 +3150,106 @@
       const editor = document.getElementById("inventoryEditor");
       editor.innerHTML = "";
       const rows = Object.entries(inv);
+      const productNames = getProductNames();
 
       if (!rows.length) {
         editor.innerHTML = '<div style="font-size:14px;color:rgba(255,255,255,.35);margin-bottom:8px;">Inga rader ännu.</div>';
         return;
       }
 
-      editor.innerHTML = rows.map(([name, qty]) => `
-        <div class="catalog-item-row" style="margin-bottom:8px;display:grid;grid-template-columns:1fr 80px auto;gap:8px;align-items:start;">
-          <div>
-            <input
-              class="catalog-input inv-name-input"
-              type="text"
-              data-inv-name="${escapeHtml(name)}"
-              value="${escapeHtml(name)}"
-              placeholder="Produktnamn (exakt)"
-              style="width:100%;margin-bottom:4px;"
-            />
-            <div class="inv-match-status">${matchStatusHtml(name)}</div>
-          </div>
-          <input
-            class="catalog-price-input inv-qty-input"
-            type="number"
-            min="0"
-            step="1"
-            data-inv-name="${escapeHtml(name)}"
-            value="${qty}"
-            placeholder="Antal"
-          />
-          <button class="catalog-small-btn danger inv-remove-btn" type="button" data-inv-remove="${escapeHtml(name)}">✕</button>
-        </div>
-      `).join("");
+      editor.innerHTML = rows.map(([name, val]) => {
+        const lager = (val && typeof val === "object") ? (val.lager || 0) : 0;
+        const stock = (val && typeof val === "object") ? (val.stock || 0) : 0;
+        const low = stock > 0 && stock < 10;
 
-      // Live validering
-      editor.querySelectorAll(".inv-name-input").forEach(input => {
-        input.addEventListener("input", () => {
-          const statusDiv = input.closest(".catalog-item-row").querySelector(".inv-match-status");
-          statusDiv.innerHTML = matchStatusHtml(input.value);
+        // Build <option> list for select
+        const usedNames = new Set(rows.map(r => r[0]));
+        const options = productNames.map(pn => {
+          const selected = pn === name ? "selected" : "";
+          const disabled = (pn !== name && usedNames.has(pn)) ? "disabled" : "";
+          return `<option value="${escapeHtml(pn)}" ${selected} ${disabled}>${escapeHtml(pn)}</option>`;
+        }).join("");
+
+        return `
+          <div class="catalog-item-row" style="margin-bottom:6px;display:grid;grid-template-columns:1fr 90px 90px 100px 40px;gap:8px;align-items:center;">
+            <select class="catalog-input inv-name-select" data-inv-key="${escapeHtml(name)}" style="padding:8px;border-radius:8px;background:#1e1e2e;color:#fff;border:1px solid rgba(255,255,255,.15);font-size:14px;">
+              ${options}
+            </select>
+            <input class="catalog-price-input inv-lager-input" type="number" min="0" step="1" value="${lager}" style="text-align:center;" title="Lager" />
+            <div style="text-align:center;font-size:16px;font-weight:700;color:${low ? '#f87171' : '#6c63ff'};" title="Stock">
+              ${stock}${low ? ' ⚠' : ''}
+            </div>
+            <button class="catalog-small-btn inv-refill-btn" type="button" data-inv-key="${escapeHtml(name)}" style="font-size:13px;padding:6px 8px;">🔄 Fyll på</button>
+            <button class="catalog-small-btn danger inv-remove-btn" type="button" data-inv-key="${escapeHtml(name)}">✕</button>
+          </div>
+        `;
+      }).join("");
+
+      // Refill button: move from lager to stock
+      editor.querySelectorAll(".inv-refill-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const key = btn.dataset.invKey;
+          const inv = loadInventory();
+          if (inv[key] && typeof inv[key] === "object" && inv[key].lager > 0) {
+            const amount = parseInt(prompt("Hur många vill du flytta från Lager → Stock?", inv[key].lager));
+            if (!isNaN(amount) && amount > 0) {
+              const actual = Math.min(amount, inv[key].lager);
+              inv[key].lager -= actual;
+              inv[key].stock += actual;
+              saveInventory(inv);
+              renderInventoryEditor();
+            }
+          }
         });
       });
 
-      // Ta bort rad
+      // Remove row
       editor.querySelectorAll(".inv-remove-btn").forEach(btn => {
         btn.addEventListener("click", () => {
           const inv = loadInventory();
-          delete inv[btn.dataset.invRemove];
+          delete inv[btn.dataset.invKey];
           saveInventory(inv);
           renderInventoryEditor();
         });
       });
     }
 
-    function renderStockEditor() {
-      const stock = loadStock();
-      const editor = document.getElementById("stockEditor");
-      editor.innerHTML = "";
-      const rows = Object.entries(stock);
-
-      if (!rows.length) {
-        editor.innerHTML = '<div style="font-size:14px;color:rgba(255,255,255,.35);margin-bottom:8px;">Inga rader ännu.</div>';
-        return;
-      }
-
-      editor.innerHTML = rows.map(([name, qty]) => {
-        const low = typeof qty === "number" && qty > 0 && qty < 10;
-        return `
-          <div class="catalog-item-row" style="margin-bottom:8px;display:grid;grid-template-columns:1fr 80px auto;gap:8px;align-items:start;">
-            <div>
-              <input
-                class="catalog-input stock-name-input"
-                type="text"
-                data-stock-name="${escapeHtml(name)}"
-                value="${escapeHtml(name)}"
-                placeholder="Produktnamn (exakt)"
-                style="width:100%;margin-bottom:4px;"
-              />
-              <div class="stock-match-status">${matchStatusHtml(name)}</div>
-              ${low ? '<span style="font-size:12px;color:#f87171;font-weight:700;">⚠ Under 10 kvar!</span>' : ''}
-            </div>
-            <input
-              class="catalog-price-input stock-qty-input"
-              type="number"
-              min="0"
-              step="1"
-              data-stock-name="${escapeHtml(name)}"
-              value="${qty}"
-              placeholder="Antal"
-            />
-            <button class="catalog-small-btn danger stock-remove-btn" type="button" data-stock-remove="${escapeHtml(name)}">✕</button>
-          </div>
-        `;
-      }).join("");
-
-      // Live validering
-      editor.querySelectorAll(".stock-name-input").forEach(input => {
-        input.addEventListener("input", () => {
-          const statusDiv = input.closest(".catalog-item-row").querySelector(".stock-match-status");
-          statusDiv.innerHTML = matchStatusHtml(input.value);
-        });
-      });
-
-      // Ta bort rad
-      editor.querySelectorAll(".stock-remove-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const stock = loadStock();
-          delete stock[btn.dataset.stockRemove];
-          saveStock(stock);
-          renderStockEditor();
-        });
-      });
-    }
-
     document.getElementById("addInventoryRowBtn").addEventListener("click", () => {
       const inv = loadInventory();
-      inv["Ny produkt " + Date.now()] = 0;
+      const productNames = getProductNames();
+      const usedNames = new Set(Object.keys(inv));
+      const available = productNames.find(n => !usedNames.has(n));
+      const newName = available || ("Ny produkt " + Date.now());
+      inv[newName] = { lager: 0, stock: 0 };
       saveInventory(inv);
       renderInventoryEditor();
     });
 
-    document.getElementById("addStockRowBtn").addEventListener("click", () => {
-      const stock = loadStock();
-      stock["Ny produkt " + Date.now()] = 0;
-      saveStock(stock);
-      renderStockEditor();
-    });
-
     document.getElementById("saveInventoryBtn").addEventListener("click", () => {
       const newInv = {};
-      document.querySelectorAll(".inv-name-input").forEach(nameInput => {
-        const row = nameInput.closest(".catalog-item-row");
-        const qtyInput = row.querySelector(".inv-qty-input");
-        const name = nameInput.value.trim();
-        const qty = parseInt(qtyInput.value);
-        if (name && !isNaN(qty) && qty >= 0) {
-          newInv[name] = qty;
-        }
-      });
-
-      const newStock = {};
-      document.querySelectorAll(".stock-name-input").forEach(nameInput => {
-        const row = nameInput.closest(".catalog-item-row");
-        const qtyInput = row.querySelector(".stock-qty-input");
-        const name = nameInput.value.trim();
-        const qty = parseInt(qtyInput.value);
-        if (name && !isNaN(qty) && qty >= 0) {
-          newStock[name] = qty;
+      document.querySelectorAll(".inv-name-select").forEach(select => {
+        const row = select.closest(".catalog-item-row");
+        const lagerInput = row.querySelector(".inv-lager-input");
+        const name = select.value.trim();
+        const lager = parseInt(lagerInput.value) || 0;
+        // Preserve current stock value from existing data
+        const oldInv = loadInventory();
+        const oldStock = (oldInv[select.dataset.invKey] && typeof oldInv[select.dataset.invKey] === "object")
+          ? oldInv[select.dataset.invKey].stock : 0;
+        if (name) {
+          newInv[name] = { lager: Math.max(0, lager), stock: Math.max(0, oldStock) };
         }
       });
 
       saveInventory(newInv);
-      saveStock(newStock);
       renderInventoryEditor();
-      renderStockEditor();
-      document.getElementById("inventorySaveStatus").textContent = "Lager & stock sparat!";
+      document.getElementById("inventorySaveStatus").textContent = "Lager sparat! ✅";
       setTimeout(() => {
         document.getElementById("inventorySaveStatus").textContent = "Spara för att uppdatera.";
       }, 2000);
     });
 
-    /* ── Pre-populate Inventory & Stock ── */
-    function initInventoryAndStock() {
-      const allNames = [];
-      categories.forEach(cat => cat.items.forEach(item => allNames.push(item.name)));
-      const nameSet = new Set(allNames);
-
-      // Check if existing keys match product names — if not, reset
-      function needsReset(data) {
-        const keys = Object.keys(data);
-        if (!keys.length) return true;
-        // If none of the keys match any product name, it's old ID-based data
-        const matchCount = keys.filter(k => nameSet.has(k)).length;
-        return matchCount === 0;
-      }
-
-      const inv = loadInventory();
-      if (needsReset(inv)) {
-        const newInv = {};
-        allNames.forEach(name => { newInv[name] = 0; });
-        saveInventory(newInv);
-      }
-
-      const stock = loadStock();
-      if (needsReset(stock)) {
-        const newStock = {};
-        allNames.forEach(name => { newStock[name] = 0; });
-        saveStock(newStock);
-      }
-    }
-    initInventoryAndStock();
+    initInventoryIfEmpty();
 
     /* ── Bootstrap ── */
     cleanupQtyState();
