@@ -3791,8 +3791,12 @@
         await showGlobalModal({ title: "Fel lösenord", subtitle: "Försök igen.", type: "confirm", confirmLabel: "OK" });
         return;
       }
+      _fbSyncPaused = true;
       localStorage.removeItem(SALES_STORAGE_KEY);
-      fbWrite("rapport", null);
+      if (window._fbDb) {
+        try { await window._fbDb.ref("rapport").set(null); } catch(e) {}
+      }
+      _fbSyncPaused = false;
       renderReport(state.currentReportMode);
     }
 
@@ -4313,16 +4317,30 @@
           confirmLabel: "Ja, nolla allt"
         });
         if (!ok) return;
-        // Radera kvitton + rapport
+        // Pausa realtidslyssnaren så att Firebase-skrivningar inte
+        // triggar en återsynk med gammal data under rensningen
+        _fbSyncPaused = true;
+
+        // Radera lokalt
         localStorage.removeItem(RECEIPT_STORAGE_KEY);
         localStorage.removeItem(SALES_STORAGE_KEY);
         localStorage.removeItem(RECEIPT_COUNTER_KEY);
-        fbWrite("kvitton", null);
-        fbWrite("rapport", null);
-        fbWrite("receiptCounter", null);
-        // Sätt engångsflagga
         localStorage.setItem(NOLLA_ALLT_KEY, "true");
-        fbWrite("nolladAllt", true);
+
+        // Radera Firebase atomiskt (en update = en lyssnarhändelse)
+        if (window._fbDb) {
+          try {
+            await window._fbDb.ref("/").update({
+              kvitton: null,
+              rapport: null,
+              receiptCounter: null,
+              nolladAllt: true
+            });
+          } catch(e) { console.warn("Firebase nolla allt:", e); }
+        }
+
+        _fbSyncPaused = false;
+
         // Dölj knappen permanent
         section.style.display = "none";
         showGlobalModal({ title: "Klart!", subtitle: "All kvitto- och rapportdata har raderats.", type: "confirm", confirmLabel: "OK" });
