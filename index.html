@@ -902,6 +902,23 @@
       align-items: center;
       justify-content: center;
     }
+    .paminnelse-bubbla {
+      background: #fffbe6;
+      color: #333;
+      border: 2px solid #f0c040;
+      border-radius: 16px;
+      padding: 10px 16px;
+      font-size: 18px;
+      font-family: Georgia, serif;
+      text-align: center;
+      animation: pulsera 2s infinite;
+      pointer-events: none;
+      margin-top: 8px;
+    }
+    @keyframes pulsera {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.7; transform: scale(1.03); }
+    }
     .pay-meta { text-align: center; display: grid; gap: 6px; }
     .pay-amount {
       font-size: 44px;
@@ -1830,10 +1847,23 @@
                             <div style="font-size:12px;color:rgba(255,255,255,.35);margin-bottom:10px;">Lösenord för att komma åt admin via mobilvy (5 tryck på loggan).</div>
                             <button class="catalog-small-btn" id="changeMobileAdminPwBtn" type="button" style="width:100%;font-size:16px;padding:10px;">Byt mobilt adminlösenord</button>
                           </div>
+
+                          <!-- Rensa-knappens lösenord -->
+                          <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;">
+                            <div style="font-size:14px;color:rgba(255,255,255,.6);margin-bottom:10px;letter-spacing:1px;">RENSA-KNAPPENS LÖSENORD</div>
+                            <div style="font-size:12px;color:rgba(255,255,255,.35);margin-bottom:10px;">Detta lösenord skyddar Rensa-knappen i rapporten.</div>
+                            <button class="catalog-small-btn" id="changeRensaPwBtn" type="button" style="width:100%;font-size:16px;padding:10px;">Byt rensa-lösenord</button>
+                          </div>
                         </div>
 
                       </div>
 
+                      <!-- Nolla allt — engångsknapp -->
+                      <div id="nollaAlltSection" style="margin-top:24px;padding:20px;background:rgba(248,113,113,.06);border:2px solid rgba(248,113,113,.2);border-radius:16px;">
+                        <div style="font-size:16px;font-style:italic;color:#f87171;margin-bottom:8px;">⚠️ Nolla allt</div>
+                        <div style="font-size:13px;color:rgba(255,255,255,.4);margin-bottom:14px;">Raderar ALL kvitto- och rapportdata permanent. Kan bara användas en gång — knappen försvinner efteråt.</div>
+                        <button class="report-action-btn danger" id="nollaAlltBtn" type="button" style="font-size:18px;padding:12px 24px;">🗑 Nolla allt</button>
+                      </div>
 
                     </div>
 
@@ -1941,6 +1971,7 @@
               <div class="pay-message" id="payMessageText"></div>
               <div class="pay-number" id="payNumberText"></div>
             </div>
+            <div class="paminnelse-bubbla" id="paminnelseBubbla">Glöm inte registrera ditt köp! 😊</div>
             <div class="pay-modal-actions">
               <button class="pay-register-btn" id="payRegisterBtn" type="button">Registrera köp</button>
               <button class="pay-receipt-btn" id="payReceiptBtn" type="button">Visa kvitto 🧾</button>
@@ -2118,10 +2149,16 @@
     const TAGS_STORAGE_KEY = "zivert-holm-tags-v1";
     const MOBILE_ADMIN_PW_KEY = "zivert-holm-mobile-admin-pw-v1";
     const DEFAULT_MOBILE_ADMIN_PW = "123456";
+    const NOLLA_ALLT_KEY = "nolladAllt";
+    const RENSA_PW_KEY = "zivert-holm-rensa-pw-v1";
+    const DEFAULT_RENSA_PW = "123456";
     const IS_MOBILE_VIEW = window.location.search.includes("mobile") || window.innerWidth < 768;
 
     function getMobileAdminPassword() {
       return localStorage.getItem(MOBILE_ADMIN_PW_KEY) || DEFAULT_MOBILE_ADMIN_PW;
+    }
+    function getRensaPassword() {
+      return localStorage.getItem(RENSA_PW_KEY) || DEFAULT_RENSA_PW;
     }
 
     /* ── Firebase sync layer ── */
@@ -2135,7 +2172,8 @@
       [TAGS_STORAGE_KEY]:           "taggar",
       [RECEIPT_COUNTER_KEY]:        "receiptCounter",
       [MOBILE_ADMIN_PW_KEY]:        "mobileAdminPw",
-      [RECEIPT_DELETE_PASSWORD_KEY]: "receiptDeletePw"
+      [RECEIPT_DELETE_PASSWORD_KEY]: "receiptDeletePw",
+      [RENSA_PW_KEY]:               "rensaLösenord"
     };
     // Settings uses literal string in some places
     const FB_SETTINGS_KEY = "installningar";
@@ -2206,6 +2244,8 @@
         if (data.receiptCounter)  localStorage.setItem(RECEIPT_COUNTER_KEY, String(data.receiptCounter));
         if (data.mobileAdminPw)   localStorage.setItem(MOBILE_ADMIN_PW_KEY, data.mobileAdminPw);
         if (data.receiptDeletePw) localStorage.setItem(RECEIPT_DELETE_PASSWORD_KEY, data.receiptDeletePw);
+        if (data["rensaLösenord"])  localStorage.setItem(RENSA_PW_KEY, data["rensaLösenord"]);
+        if (data.nolladAllt)       localStorage.setItem(NOLLA_ALLT_KEY, "true");
         _fbSyncPaused = false;
         _fbReady = true;
         console.log("Firebase data loaded.");
@@ -2510,16 +2550,30 @@
       } catch(e) { return []; }
     }
     async function saveReceipt(receiptId, cart, total) {
+      const receipts = loadReceipts();
+      const existing = receipts.find(r => String(r.id) === String(receiptId));
+
+      if (existing) {
+        // Uppdatera befintligt obekräftat kvitto → registrerad
+        existing.status = "registrerad";
+        localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
+        if (window._fbDb && !_fbSyncPaused) {
+          try {
+            const year = new Date(existing.time).getFullYear();
+            const kvittoNummer = `ZH-${year}-${receiptId}`;
+            fbWrite("kvitton/" + kvittoNummer + "/status", "registrerad");
+          } catch(e) { console.warn("Kvitto Firebase-fel:", e); }
+        }
+        return;
+      }
+
+      // Fallback: skapa nytt kvitto om det inte redan finns (borde inte hända)
       const now = new Date();
       const datum = now.toLocaleDateString("sv-SE");
       const tid = now.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
-
-      // Dubblettskydd
-      const receipts = loadReceipts();
-      if (receipts.some(r => String(r.id) === String(receiptId))) return;
-
       const receipt = {
         id: receiptId,
+        status: "registrerad",
         time: now.toISOString(),
         datum,
         tid,
@@ -2528,33 +2582,18 @@
         tagged: false,
         tagType: null
       };
-
-      // Steg 1: localStorage FÖRST
       receipts.push(receipt);
       localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
 
-      // Steg 2: Firebase EFTER — läsbart format per kvitto
       if (window._fbDb && !_fbSyncPaused) {
         try {
           const kvittoNummer = `ZH-${now.getFullYear()}-${receiptId}`;
-          const fbReceipt = {
-            kvittoNummer,
-            datum,
-            tid,
-            betalning: "Swish",
-            produkter: cart.map(i => ({
-              namn: i.name,
-              antal: i.qty,
-              prisStyck: i.price,
-              prisTotal: i.sum
-            })),
-            totalSumma: total,
-            tagg: null
-          };
-          await fbWrite("kvitton/" + kvittoNummer, fbReceipt);
-        } catch(e) {
-          console.warn("Kvitto Firebase-fel:", e);
-        }
+          await fbWrite("kvitton/" + kvittoNummer, {
+            kvittoNummer, datum, tid, betalning: "Swish", status: "registrerad",
+            produkter: cart.map(i => ({ namn: i.name, antal: i.qty, prisStyck: i.price, prisTotal: i.sum })),
+            totalSumma: total, tagg: null
+          });
+        } catch(e) { console.warn("Kvitto Firebase-fel:", e); }
       }
     }
 
@@ -2886,13 +2925,44 @@
     }
 
     /* ── Payment modal ── */
-    function openPaymentModal() {
+    async function openPaymentModal() {
       const { cart, totalItems, total } = getTotals();
       if (!total) return;
 
       const receiptId = getNextReceiptId();
       state.currentReceiptId = receiptId;
       state.currentCart = cart;
+
+      // Spara obekräftat kvitto direkt
+      const now = new Date();
+      const datum = now.toLocaleDateString("sv-SE");
+      const tid = now.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
+      const pendingReceipt = {
+        id: receiptId,
+        status: "ej_registrerad",
+        time: now.toISOString(),
+        datum,
+        tid,
+        items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, sum: i.sum })),
+        total,
+        tagged: false,
+        tagType: null
+      };
+      const receipts = loadReceipts();
+      if (!receipts.some(r => String(r.id) === String(receiptId))) {
+        receipts.push(pendingReceipt);
+        localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
+        if (window._fbDb && !_fbSyncPaused) {
+          try {
+            const kvittoNummer = `ZH-${now.getFullYear()}-${receiptId}`;
+            await fbWrite("kvitton/" + kvittoNummer, {
+              kvittoNummer, datum, tid, betalning: "Swish", status: "ej_registrerad",
+              produkter: cart.map(i => ({ namn: i.name, antal: i.qty, prisStyck: i.price, prisTotal: i.sum })),
+              totalSumma: total, tagg: null
+            });
+          } catch(e) { console.warn("Kvitto Firebase-fel:", e); }
+        }
+      }
 
       const message = buildSwishMessage(totalItems, receiptId);
       const payload = buildSwishPayload(total, message);
@@ -3203,7 +3273,18 @@
         setTimeout(() => { copyReportBtn.textContent = "Kopiera"; }, 1400);
       }
     }
-    function clearReportData() {
+    async function clearReportData() {
+      const pw = await showGlobalModal({
+        title: "Bekräfta rensning",
+        subtitle: "Ange lösenord för att rensa rapportdata.",
+        type: "password",
+        confirmLabel: "Bekräfta"
+      });
+      if (pw === null) return;
+      if (pw !== getRensaPassword()) {
+        await showGlobalModal({ title: "Fel lösenord", subtitle: "Försök igen.", type: "confirm", confirmLabel: "OK" });
+        return;
+      }
       localStorage.removeItem(SALES_STORAGE_KEY);
       fbWrite("rapport", null);
       renderReport(state.currentReportMode);
@@ -3424,8 +3505,8 @@
 
     function openChangePwModal(target) {
       changePwTarget = target;
-      document.getElementById("changePwModalTitle").textContent =
-        target === "admin" ? "Byt adminlösenord" : "Byt kvittolösenord";
+      const titles = { admin: "Byt adminlösenord", receipt: "Byt kvittolösenord", mobileAdmin: "Byt mobiladmin-lösenord", rensa: "Byt rensa-lösenord" };
+      document.getElementById("changePwModalTitle").textContent = titles[target] || "Byt lösenord";
       document.getElementById("changePwCurrent").value = "";
       document.getElementById("changePwNew").value = "";
       document.getElementById("changePwError").textContent = "";
@@ -3436,6 +3517,41 @@
     document.getElementById("changeAdminPwBtn").addEventListener("click", () => openChangePwModal("admin"));
     document.getElementById("changeReceiptPwBtn").addEventListener("click", () => openChangePwModal("receipt"));
     document.getElementById("changeMobileAdminPwBtn").addEventListener("click", () => openChangePwModal("mobileAdmin"));
+    document.getElementById("changeRensaPwBtn").addEventListener("click", () => openChangePwModal("rensa"));
+
+    // Nolla allt — engångsknapp
+    (function initNollaAllt() {
+      const section = document.getElementById("nollaAlltSection");
+      if (!section) return;
+      if (localStorage.getItem(NOLLA_ALLT_KEY) === "true") {
+        section.style.display = "none";
+        return;
+      }
+      document.getElementById("nollaAlltBtn").addEventListener("click", async () => {
+        const ok = await showGlobalModal({
+          title: "⚠️ Nolla allt",
+          subtitle: "Detta raderar ALL kvitto- och rapportdata permanent och kan inte ångras. Är du säker?",
+          type: "confirm",
+          confirmLabel: "Ja, nolla allt"
+        });
+        if (!ok) return;
+        // Radera kvitton + rapport
+        localStorage.removeItem(RECEIPT_STORAGE_KEY);
+        localStorage.removeItem(SALES_STORAGE_KEY);
+        localStorage.removeItem(RECEIPT_COUNTER_KEY);
+        fbWrite("kvitton", null);
+        fbWrite("rapport", null);
+        fbWrite("receiptCounter", null);
+        // Sätt engångsflagga
+        localStorage.setItem(NOLLA_ALLT_KEY, "true");
+        fbWrite("nolladAllt", true);
+        // Dölj knappen permanent
+        section.style.display = "none";
+        showGlobalModal({ title: "Klart!", subtitle: "All kvitto- och rapportdata har raderats.", type: "confirm", confirmLabel: "OK" });
+        renderReport(state.currentReportMode);
+        renderReceiptsAdmin();
+      });
+    })();
     document.getElementById("changePwCancelBtn").addEventListener("click", () => {
       document.getElementById("changePwModal").style.display = "none";
     });
@@ -3465,6 +3581,13 @@
         }
         localStorage.setItem(MOBILE_ADMIN_PW_KEY, newPw);
         fbSyncPlain(MOBILE_ADMIN_PW_KEY);
+      } else if (changePwTarget === "rensa") {
+        if (current !== getRensaPassword()) {
+          errorEl.textContent = "Fel nuvarande lösenord.";
+          return;
+        }
+        localStorage.setItem(RENSA_PW_KEY, newPw);
+        fbSyncPlain(RENSA_PW_KEY);
       } else {
         if (current !== getReceiptDeletePassword()) {
           errorEl.textContent = "Fel nuvarande lösenord.";
@@ -3793,18 +3916,23 @@
       // Tag manager
       renderTagManager();
 
-      // Sortera: otaggade först, sedan per tagg-grupp
-      const untagged = allReceipts.filter(r => !r.tagType);
+      // Dela upp: registrerade vs ej registrerade (gamla utan status = registrerade)
+      const registered = allReceipts.filter(r => r.status !== "ej_registrerad");
+      const unregistered = allReceipts.filter(r => r.status === "ej_registrerad");
+
+      // Sortera registrerade: otaggade först, sedan per tagg-grupp
+      const untagged = registered.filter(r => !r.tagType);
       const tagGroups = {};
       allTags.forEach(tag => {
-        const items = allReceipts.filter(r => r.tagType === tag.id);
+        const items = registered.filter(r => r.tagType === tag.id);
         if (items.length) tagGroups[tag.id] = { tag, items };
       });
 
       // Meta text
-      let metaText = `Totalt ${allReceipts.length} kvitton (${untagged.length} otaggade).`;
+      let metaText = `Totalt ${registered.length} registrerade kvitton (${untagged.length} otaggade).`;
+      if (unregistered.length) metaText += ` ⚠️ ${unregistered.length} ej registrerade.`;
       allTags.forEach(tag => {
-        const tagged = allReceipts.filter(r => r.tagType === tag.id);
+        const tagged = registered.filter(r => r.tagType === tag.id);
         if (tagged.length) metaText += ` ${tag.label}: ${tagged.length} st (−${tagged.reduce((s,r) => s + Number(r.total), 0)} kr).`;
       });
       meta.textContent = metaText;
@@ -3871,7 +3999,42 @@
           </div>`;
       });
 
+      // Bygg ej-registrerade sektionen
+      let unregHtml = "";
+      if (unregistered.length) {
+        unregHtml = `
+          <div style="margin-bottom:24px;border:2px solid rgba(251,191,36,.3);background:rgba(251,191,36,.05);border-radius:16px;padding:16px;">
+            <div style="font-size:20px;color:#fbbf24;font-weight:700;margin-bottom:12px;">⚠️ Ej registrerade — ${unregistered.length} st</div>
+            <div style="font-size:13px;color:rgba(255,255,255,.4);margin-bottom:12px;">Dessa köp initierades (Betala klickades) men registrerades aldrig.</div>
+            ${unregistered.map(r => `
+              <div class="report-group" style="margin-bottom:10px;border:1px solid rgba(251,191,36,.2);opacity:.8;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+                  <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="font-size:24px;font-weight:700;color:#fbbf24;">#${escapeHtml(r.id)}</span>
+                    <span style="font-size:12px;background:rgba(251,191,36,.15);color:#fbbf24;padding:3px 10px;border-radius:6px;">EJ REGISTRERAD</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="font-size:14px;color:rgba(255,255,255,.45);">${r.datum || ''} ${r.tid || ''}</span>
+                    <button class="catalog-small-btn desktop-delete-unreg-btn" data-receipt-id="${escapeHtml(r.id)}" type="button"
+                      style="font-size:11px;padding:2px 8px;background:rgba(248,113,113,.1);color:#f87171;border:1px solid rgba(248,113,113,.3);">
+                      🗑 Radera
+                    </button>
+                  </div>
+                </div>
+                ${(r.items || []).map(i => `
+                  <div class="report-row">
+                    <span>${escapeHtml(i.qty)} × ${escapeHtml(i.name)}</span>
+                    <span>${escapeHtml(i.sum)} kr</span>
+                  </div>
+                `).join("")}
+                <div style="margin-top:8px;font-size:22px;font-weight:700;color:#fbbf24;text-align:right;">${escapeHtml(r.total)} kr</div>
+              </div>
+            `).join("")}
+          </div>`;
+      }
+
       list.innerHTML = `
+        ${unregHtml}
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
           <button class="catalog-small-btn" id="selectAllReceiptsBtn" type="button">Markera alla</button>
           <button class="catalog-small-btn" id="deselectAllReceiptsBtn" type="button">Avmarkera alla</button>
@@ -3885,6 +4048,20 @@
         ${untagged.map(receiptCardHtml).join("")}
         ${tagSectionsHtml}
       `;
+
+      // Delete unregistered receipts
+      list.querySelectorAll(".desktop-delete-unreg-btn").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const receiptId = btn.dataset.receiptId;
+          const ok = await showGlobalModal({ title: "Radera", subtitle: `Radera oregistrerat kvitto #${receiptId}?`, type: "confirm", confirmLabel: "Radera" });
+          if (!ok) return;
+          let receipts = loadReceipts();
+          receipts = receipts.filter(r => String(r.id) !== String(receiptId));
+          localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
+          fbSyncAfterSave(RECEIPT_STORAGE_KEY);
+          renderReceiptsAdmin();
+        });
+      });
 
       // Checkbox logik
       function updateBulkBtns() {
@@ -4572,16 +4749,20 @@
       const allTags = loadTags();
       if (!allReceipts.length) return `<div style="color:rgba(255,255,255,.4);text-align:center;padding:20px;">Inga kvitton registrerade.</div>`;
 
-      const untagged = allReceipts.filter(r => !r.tagType);
+      const registered = allReceipts.filter(r => r.status !== "ej_registrerad");
+      const unregistered = allReceipts.filter(r => r.status === "ej_registrerad");
+
+      const untagged = registered.filter(r => !r.tagType);
       const tagGroups = {};
       allTags.forEach(tag => {
-        const items = allReceipts.filter(r => r.tagType === tag.id);
+        const items = registered.filter(r => r.tagType === tag.id);
         if (items.length) tagGroups[tag.id] = { tag, items };
       });
 
-      let metaText = `${allReceipts.length} kvitton totalt (${untagged.length} otaggade).`;
+      let metaText = `${registered.length} registrerade kvitton (${untagged.length} otaggade).`;
+      if (unregistered.length) metaText += ` ⚠️ ${unregistered.length} ej registrerade.`;
       allTags.forEach(tag => {
-        const tagged = allReceipts.filter(r => r.tagType === tag.id);
+        const tagged = registered.filter(r => r.tagType === tag.id);
         if (tagged.length) metaText += ` ${tag.label}: ${tagged.length} st.`;
       });
 
@@ -4644,8 +4825,35 @@
         `;
       });
 
+      // Ej registrerade sektion
+      let unregHtml = "";
+      if (unregistered.length) {
+        unregHtml = `
+          <div style="margin-bottom:16px;border:2px solid rgba(251,191,36,.3);background:rgba(251,191,36,.05);border-radius:12px;padding:12px;">
+            <div style="font-size:16px;color:#fbbf24;font-weight:700;margin-bottom:8px;">⚠️ Ej registrerade — ${unregistered.length} st</div>
+            ${unregistered.map(r => `
+              <div class="mav-card" style="border-color:rgba(251,191,36,.2);opacity:.8;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                  <span style="font-size:20px;font-weight:700;color:#fbbf24;">#${escapeHtml(r.id)}</span>
+                  <span style="font-size:11px;background:rgba(251,191,36,.15);color:#fbbf24;padding:2px 8px;border-radius:6px;">EJ REGISTRERAD</span>
+                </div>
+                <div style="font-size:12px;color:rgba(255,255,255,.4);margin-bottom:6px;">${r.datum || ''} ${r.tid || ''}</div>
+                ${(r.items || []).map(i => `
+                  <div style="display:flex;justify-content:space-between;padding:2px 0;font-size:14px;">
+                    <span>${escapeHtml(i.qty)} × ${escapeHtml(i.name)}</span>
+                    <span>${escapeHtml(i.sum)} kr</span>
+                  </div>
+                `).join("")}
+                <div style="text-align:right;font-weight:700;font-size:18px;margin-top:6px;color:#fbbf24;">${escapeHtml(r.total)} kr</div>
+                <button class="mav-btn mav-delete-unreg-btn" data-receipt="${escapeHtml(r.id)}" style="margin-top:8px;color:#f87171;border-color:rgba(248,113,113,.3);">🗑 Radera</button>
+              </div>
+            `).join("")}
+          </div>`;
+      }
+
       return `
         <div style="font-size:13px;color:rgba(255,255,255,.4);margin-bottom:12px;">${metaText}</div>
+        ${unregHtml}
         ${untagged.map(receiptCard).join("")}
         ${tagSectionsHtml}
       `;
@@ -4669,8 +4877,15 @@
           <div style="font-size:14px;color:rgba(255,255,255,.5);margin-bottom:8px;">LÖSENORD</div>
           <button class="mav-btn mav-pw-btn" data-pw="admin" style="margin-bottom:8px;">🔑 Byt adminlösenord</button>
           <button class="mav-btn mav-pw-btn" data-pw="receipt" style="margin-bottom:8px;">🔑 Byt kvittolösenord</button>
-          <button class="mav-btn mav-pw-btn" data-pw="mobileAdmin">🔑 Byt mobiladmin-lösenord</button>
+          <button class="mav-btn mav-pw-btn" data-pw="mobileAdmin" style="margin-bottom:8px;">🔑 Byt mobiladmin-lösenord</button>
+          <button class="mav-btn mav-pw-btn" data-pw="rensa">🔑 Byt rensa-lösenord</button>
         </div>
+        ${localStorage.getItem(NOLLA_ALLT_KEY) !== "true" ? `
+        <div class="mav-card" style="border-color:rgba(248,113,113,.3);">
+          <div style="font-size:14px;color:#f87171;margin-bottom:6px;">⚠️ Nolla allt</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.4);margin-bottom:10px;">Raderar ALL kvitto- och rapportdata permanent. Kan bara användas en gång.</div>
+          <button class="mav-btn" id="mavNollaAllt" style="color:#f87171;border-color:rgba(248,113,113,.3);">🗑 Nolla allt</button>
+        </div>` : ''}
       `;
     }
 
@@ -4686,8 +4901,13 @@
           });
           const clearBtn = document.getElementById("mavClearReport");
           if (clearBtn) clearBtn.addEventListener("click", async () => {
-            const ok = await showGlobalModal({ title: "Rensa data", subtitle: "Vill du radera all försäljningsdata?", type: "confirm", confirmLabel: "Rensa" });
-            if (ok) { localStorage.removeItem(SALES_STORAGE_KEY); fbWrite("rapport", null); openMobileAdminSection("report"); }
+            const pw = await showGlobalModal({ title: "Bekräfta rensning", subtitle: "Ange lösenord för att rensa rapportdata.", type: "password", confirmLabel: "Bekräfta" });
+            if (pw === null) return;
+            if (pw !== getRensaPassword()) {
+              await showGlobalModal({ title: "Fel lösenord", subtitle: "Försök igen.", type: "confirm", confirmLabel: "OK" });
+              return;
+            }
+            localStorage.removeItem(SALES_STORAGE_KEY); fbWrite("rapport", null); openMobileAdminSection("report");
           });
           const copyBtn = document.getElementById("mavCopyReport");
           if (copyBtn) copyBtn.addEventListener("click", async () => {
@@ -4842,6 +5062,19 @@
         }
 
         case "receipts": {
+          // Radera oregistrerat kvitto
+          document.querySelectorAll(".mav-delete-unreg-btn").forEach(btn => {
+            btn.addEventListener("click", async () => {
+              const receiptId = btn.dataset.receipt;
+              const ok = await showGlobalModal({ title: "Radera", subtitle: `Radera oregistrerat kvitto #${receiptId}?`, type: "confirm", confirmLabel: "Radera" });
+              if (!ok) return;
+              let receipts = loadReceipts();
+              receipts = receipts.filter(r => String(r.id) !== String(receiptId));
+              localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
+              fbSyncAfterSave(RECEIPT_STORAGE_KEY);
+              openMobileAdminSection("receipts");
+            });
+          });
           // Tagga kvitto
           document.querySelectorAll(".mav-tag-btn").forEach(btn => {
             btn.addEventListener("click", async () => {
@@ -4905,6 +5138,26 @@
           });
           document.querySelectorAll(".mav-pw-btn").forEach(btn => {
             btn.addEventListener("click", () => openChangePwModal(btn.dataset.pw));
+          });
+          const mavNolla = document.getElementById("mavNollaAllt");
+          if (mavNolla) mavNolla.addEventListener("click", async () => {
+            const ok = await showGlobalModal({
+              title: "⚠️ Nolla allt",
+              subtitle: "Detta raderar ALL kvitto- och rapportdata permanent och kan inte ångras. Är du säker?",
+              type: "confirm",
+              confirmLabel: "Ja, nolla allt"
+            });
+            if (!ok) return;
+            localStorage.removeItem(RECEIPT_STORAGE_KEY);
+            localStorage.removeItem(SALES_STORAGE_KEY);
+            localStorage.removeItem(RECEIPT_COUNTER_KEY);
+            fbWrite("kvitton", null);
+            fbWrite("rapport", null);
+            fbWrite("receiptCounter", null);
+            localStorage.setItem(NOLLA_ALLT_KEY, "true");
+            fbWrite("nolladAllt", true);
+            showGlobalModal({ title: "Klart!", subtitle: "All kvitto- och rapportdata har raderats.", type: "confirm", confirmLabel: "OK" });
+            openMobileAdminSection("settings");
           });
           break;
         }
