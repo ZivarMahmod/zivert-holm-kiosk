@@ -280,6 +280,59 @@
       margin-top: 6px;
     }
 
+    /* Erbjudande-pil-bubbla */
+    .erbjudande-pil-wrapper {
+      display: flex;
+      align-items: flex-start;
+      margin-top: -8px;
+      margin-left: 20px;
+    }
+    .erbjudande-pil-bubbla {
+      background: linear-gradient(135deg, #72383D, #8B4449);
+      color: #EFE9E1;
+      border-radius: 16px;
+      padding: 12px 18px;
+      font-family: Georgia, serif;
+      text-align: center;
+      box-shadow: 0 4px 15px rgba(114,56,61,0.4);
+      animation: pilHopp 1.8s ease-in-out infinite;
+      position: relative;
+      max-width: 180px;
+    }
+    .erbjudande-pil-bubbla::before {
+      content: '';
+      position: absolute;
+      top: -12px;
+      left: 30px;
+      border-width: 0 10px 12px;
+      border-style: solid;
+      border-color: transparent transparent #72383D;
+    }
+    .pil-emoji {
+      font-size: 24px;
+      display: block;
+      animation: pilPeka 1s ease-in-out infinite alternate;
+    }
+    .pil-text {
+      font-size: 13px;
+      font-weight: bold;
+      color: #EFE9E1;
+      margin: 4px 0 2px;
+    }
+    .pil-subtext {
+      font-size: 12px;
+      color: #D1C7BD;
+      margin: 0;
+    }
+    @keyframes pilHopp {
+      0%, 100% { transform: translateY(0) rotate(-1deg); }
+      50% { transform: translateY(-6px) rotate(1deg); }
+    }
+    @keyframes pilPeka {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-4px); }
+    }
+
     /* ── Category view ── */
     .category-page {
       display: flex;
@@ -1796,6 +1849,13 @@
                 <div>
                   <h2 class="section-title" style="font-size:36px;">Just nu</h2>
                   <div class="offers-grid" id="offersGrid"></div>
+                  <div class="erbjudande-pil-wrapper">
+                    <div class="erbjudande-pil-bubbla">
+                      <span class="pil-emoji">👆</span>
+                      <p class="pil-text">Nu funkar den faktiskt!</p>
+                      <p class="pil-subtext">Tryck & spara 5 kr 🎉</p>
+                    </div>
+                  </div>
                 </div>
                 <div class="wish-row">
                   <button class="wish-trigger-btn" id="wishTriggerBtn" type="button">💌 Önska en produkt</button>
