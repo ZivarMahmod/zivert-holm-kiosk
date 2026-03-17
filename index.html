@@ -2382,53 +2382,12 @@
     const VAJL_KNAPP_STORAGE_KEY = "zivert-holm-vajl-knapp-v1";
     const IS_MOBILE_VIEW = window.location.search.includes("mobile") || window.innerWidth < 768;
 
-    /* ── Lösenordshashning (SHA-256, Web Crypto) ── */
-    const ADMIN_PW_HASH_KEY         = "zivert-holm-admin-pw-hash";
-    const MOBILE_ADMIN_PW_HASH_KEY  = "zivert-holm-mobile-admin-pw-hash";
-    const RENSA_PW_HASH_KEY         = "zivert-holm-rensa-pw-hash";
-    const RECEIPT_DELETE_PW_HASH_KEY = "zivert-holm-receipt-delete-pw-hash";
-
-    async function hashLösenord(pw) {
-      const data = new TextEncoder().encode(String(pw));
-      const buf  = await crypto.subtle.digest("SHA-256", data);
-      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
+    function getMobileAdminPassword() {
+      return localStorage.getItem(MOBILE_ADMIN_PW_KEY) || DEFAULT_MOBILE_ADMIN_PW;
     }
-
-    /* Hämta sparad hash — returnerar string eller null */
-    function getAdminPwHash()        { return localStorage.getItem(ADMIN_PW_HASH_KEY); }
-    function getMobileAdminPwHash()  { return localStorage.getItem(MOBILE_ADMIN_PW_HASH_KEY); }
-    function getRensaPwHash()        { return localStorage.getItem(RENSA_PW_HASH_KEY); }
-    function getReceiptDeletePwHash(){ return localStorage.getItem(RECEIPT_DELETE_PW_HASH_KEY); }
-
-    /* Migrera klartext → hash vid första laddning */
-    async function migratePasswordsToHashes() {
-      const migrations = [
-        { hashKey: ADMIN_PW_HASH_KEY,          getPlain: () => loadSettings().password || REPORT_PASSWORD },
-        { hashKey: MOBILE_ADMIN_PW_HASH_KEY,   getPlain: () => localStorage.getItem(MOBILE_ADMIN_PW_KEY) || DEFAULT_MOBILE_ADMIN_PW },
-        { hashKey: RENSA_PW_HASH_KEY,          getPlain: () => localStorage.getItem(RENSA_PW_KEY) || DEFAULT_RENSA_PW },
-        { hashKey: RECEIPT_DELETE_PW_HASH_KEY, getPlain: () => localStorage.getItem(RECEIPT_DELETE_PASSWORD_KEY) || DEFAULT_RECEIPT_DELETE_PASSWORD },
-      ];
-      for (const { hashKey, getPlain } of migrations) {
-        if (!localStorage.getItem(hashKey)) {
-          const plain = getPlain();
-          // Hasha bara om det är klartext (inte redan 64-teckens hex)
-          if (plain && !/^[a-f0-9]{64}$/.test(plain)) {
-            localStorage.setItem(hashKey, await hashLösenord(plain));
-          }
-        }
-      }
-      // Ta bort klartext-lösenord från settings-objektet
-      const s = loadSettings();
-      if (s.password) { delete s.password; localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(s)); }
-      // Ta bort klartext-lösenord från övriga localStorage-nycklar
-      localStorage.removeItem(MOBILE_ADMIN_PW_KEY);
-      localStorage.removeItem(RENSA_PW_KEY);
-      localStorage.removeItem(RECEIPT_DELETE_PASSWORD_KEY);
+    function getRensaPassword() {
+      return localStorage.getItem(RENSA_PW_KEY) || DEFAULT_RENSA_PW;
     }
-
-    /* Bakåtkompatibla wrappers (används av äldre kod som kollar return-värde) */
-    function getMobileAdminPassword() { return null; } // ersatt av hash-logik
-    function getRensaPassword()        { return null; } // ersatt av hash-logik
 
     /* ── Firebase sync layer ── */
     const FB_KEY_MAP = {
@@ -2440,7 +2399,9 @@
       [WISHES_STORAGE_KEY]:         "onskningar",
       [TAGS_STORAGE_KEY]:           "taggar",
       [RECEIPT_COUNTER_KEY]:        "receiptCounter",
-      // Lösenord synkas INTE till Firebase — borttagna från kartan
+      [MOBILE_ADMIN_PW_KEY]:        "mobileAdminPw",
+      [RECEIPT_DELETE_PASSWORD_KEY]: "receiptDeletePw",
+      [RENSA_PW_KEY]:               "rensaLösenord",
       [BUBBLA_STORAGE_KEY]:          "bubblainställningar",
       [VAJL_KNAPP_STORAGE_KEY]:      "valjKnappInstallningar"
     };
@@ -2471,10 +2432,7 @@
       try {
         const raw = localStorage.getItem("zivert-holm-settings-v1");
         const data = raw ? JSON.parse(raw) : {};
-        // Skicka ALDRIG lösenord till Firebase
-        const safe = { ...data };
-        delete safe.password;
-        fbWrite(FB_SETTINGS_KEY, safe);
+        fbWrite(FB_SETTINGS_KEY, data);
       } catch(e) {}
     }
 
@@ -2512,14 +2470,11 @@
         }
         if (data.onskningar)      localStorage.setItem(WISHES_STORAGE_KEY, JSON.stringify(data.onskningar));
         if (data.taggar)          localStorage.setItem(TAGS_STORAGE_KEY, JSON.stringify(data.taggar));
-        if (data.installningar) {
-          // Ladda settings men INTE lösenordsfeltet (hashes förvaras lokalt)
-          const s = { ...data.installningar };
-          delete s.password;
-          localStorage.setItem("zivert-holm-settings-v1", JSON.stringify(s));
-        }
+        if (data.installningar)   localStorage.setItem("zivert-holm-settings-v1", JSON.stringify(data.installningar));
         if (data.receiptCounter)  localStorage.setItem(RECEIPT_COUNTER_KEY, String(data.receiptCounter));
-        // Lösenord läses INTE från Firebase — de hanteras lokalt som hashes
+        if (data.mobileAdminPw)   localStorage.setItem(MOBILE_ADMIN_PW_KEY, data.mobileAdminPw);
+        if (data.receiptDeletePw) localStorage.setItem(RECEIPT_DELETE_PASSWORD_KEY, data.receiptDeletePw);
+        if (data["rensaLösenord"])  localStorage.setItem(RENSA_PW_KEY, data["rensaLösenord"]);
         if (data["bubblainställningar"]) localStorage.setItem(BUBBLA_STORAGE_KEY, JSON.stringify(data["bubblainställningar"]));
         if (data["valjKnappInstallningar"]) localStorage.setItem(VAJL_KNAPP_STORAGE_KEY, JSON.stringify(data["valjKnappInstallningar"]));
         if (data.nolladAllt)       localStorage.setItem(NOLLA_ALLT_KEY, "true");
@@ -3567,10 +3522,8 @@
       reportLoginError.textContent = "";
       reportPasswordInput.value = "";
     }
-    async function tryReportLogin() {
-      const inputHash = await hashLösenord(reportPasswordInput.value);
-      const storedHash = getAdminPwHash();
-      if (inputHash === storedHash) {
+    function tryReportLogin() {
+      if (reportPasswordInput.value === getEffectivePassword()) {
         closeReportLogin();
         openReportView("7days");
       } else {
@@ -3834,7 +3787,7 @@
         confirmLabel: "Bekräfta"
       });
       if (pw === null) return;
-      if (await hashLösenord(pw) !== getRensaPwHash()) {
+      if (pw !== getRensaPassword()) {
         await showGlobalModal({ title: "Fel lösenord", subtitle: "Försök igen.", type: "confirm", confirmLabel: "OK" });
         return;
       }
@@ -4399,7 +4352,7 @@
       document.getElementById("changePwModal").style.display = "none";
     });
 
-    document.getElementById("changePwConfirmBtn").addEventListener("click", async () => {
+    document.getElementById("changePwConfirmBtn").addEventListener("click", () => {
       const current = document.getElementById("changePwCurrent").value;
       const newPw = document.getElementById("changePwNew").value.trim();
       const errorEl = document.getElementById("changePwError");
@@ -4409,35 +4362,35 @@
         return;
       }
 
-      const currentHash = await hashLösenord(current);
-      const newHash     = await hashLösenord(newPw);
-
       if (changePwTarget === "admin") {
-        if (currentHash !== getAdminPwHash()) {
+        if (current !== getEffectivePassword()) {
           errorEl.textContent = "Fel nuvarande lösenord.";
           return;
         }
-        // Spara hash lokalt — INTE i Firebase
-        localStorage.setItem(ADMIN_PW_HASH_KEY, newHash);
-        const s = loadSettings(); delete s.password; saveSettings(s);
+        const s = loadSettings();
+        s.password = newPw;
+        saveSettings(s);
       } else if (changePwTarget === "mobileAdmin") {
-        if (currentHash !== getMobileAdminPwHash()) {
+        if (current !== getMobileAdminPassword()) {
           errorEl.textContent = "Fel nuvarande lösenord.";
           return;
         }
-        localStorage.setItem(MOBILE_ADMIN_PW_HASH_KEY, newHash);
+        localStorage.setItem(MOBILE_ADMIN_PW_KEY, newPw);
+        fbSyncPlain(MOBILE_ADMIN_PW_KEY);
       } else if (changePwTarget === "rensa") {
-        if (currentHash !== getRensaPwHash()) {
+        if (current !== getRensaPassword()) {
           errorEl.textContent = "Fel nuvarande lösenord.";
           return;
         }
-        localStorage.setItem(RENSA_PW_HASH_KEY, newHash);
+        localStorage.setItem(RENSA_PW_KEY, newPw);
+        fbSyncPlain(RENSA_PW_KEY);
       } else {
-        if (currentHash !== getReceiptDeletePwHash()) {
+        if (current !== getReceiptDeletePassword()) {
           errorEl.textContent = "Fel nuvarande lösenord.";
           return;
         }
-        localStorage.setItem(RECEIPT_DELETE_PW_HASH_KEY, newHash);
+        localStorage.setItem(RECEIPT_DELETE_PASSWORD_KEY, newPw);
+        fbSyncPlain(RECEIPT_DELETE_PASSWORD_KEY);
       }
 
       document.getElementById("changePwModal").style.display = "none";
@@ -5023,7 +4976,7 @@
             confirmLabel: "Bekräfta"
           });
           if (pw === null) return;
-          if (await hashLösenord(pw) !== getReceiptDeletePwHash()) {
+          if (pw !== getReceiptDeletePassword()) {
             document.getElementById("globalModalError").textContent = "Fel lösenord.";
             return;
           }
@@ -5049,7 +5002,7 @@
             confirmLabel: "Bekräfta"
           });
           if (pw === null) return;
-          if (await hashLösenord(pw) !== getReceiptDeletePwHash()) {
+          if (pw !== getReceiptDeletePassword()) {
             document.getElementById("globalModalError").textContent = "Fel lösenord.";
             return;
           }
@@ -5082,7 +5035,7 @@
           const receiptId = btn.dataset.receiptId;
           const pw = await showGlobalModal({ title: "Lösenord", subtitle: `Radera kvitto #${receiptId}?`, type: "password", confirmLabel: "Radera" });
           if (pw === null) return;
-          if (await hashLösenord(pw) !== getReceiptDeletePwHash()) {
+          if (pw !== getReceiptDeletePassword()) {
             document.getElementById("globalModalError").textContent = "Fel lösenord.";
             return;
           }
@@ -5105,7 +5058,7 @@
           const count = receipts.filter(r => r.tagType === tagId).length;
           const pw = await showGlobalModal({ title: "Lösenord", subtitle: `Radera ${count} kvitton med taggen "${tagLabel}"?`, type: "password", confirmLabel: "Radera alla" });
           if (pw === null) return;
-          if (await hashLösenord(pw) !== getReceiptDeletePwHash()) {
+          if (pw !== getReceiptDeletePassword()) {
             document.getElementById("globalModalError").textContent = "Fel lösenord.";
             return;
           }
@@ -5460,7 +5413,7 @@
       // Mobile admin confirm
       document.getElementById("mobileAdminConfirmBtn").addEventListener("click", () => {
         const pw = document.getElementById("mobileAdminPwInput").value;
-        if (await hashLösenord(pw) === getMobileAdminPwHash()) {
+        if (pw === getMobileAdminPassword()) {
           document.getElementById("mobileAdminOverlay").style.display = "none";
           document.getElementById("mobileOverview").style.display = "none";
           document.getElementById("mobileCategoryView").style.display = "none";
@@ -5895,7 +5848,7 @@
           if (clearBtn) clearBtn.addEventListener("click", async () => {
             const pw = await showGlobalModal({ title: "Bekräfta rensning", subtitle: "Ange lösenord för att rensa rapportdata.", type: "password", confirmLabel: "Bekräfta" });
             if (pw === null) return;
-            if (await hashLösenord(pw) !== getRensaPwHash()) {
+            if (pw !== getRensaPassword()) {
               await showGlobalModal({ title: "Fel lösenord", subtitle: "Försök igen.", type: "confirm", confirmLabel: "OK" });
               return;
             }
@@ -6095,7 +6048,7 @@
               const r = receipts.find(r => String(r.id) === String(receiptId));
               if (!r) return;
               const pw = await showGlobalModal({ title: "Lösenord", subtitle: `Tagga kvitto #${receiptId}`, type: "password", confirmLabel: "OK" });
-              if (await hashLösenord(pw) !== getReceiptDeletePwHash()) return;
+              if (pw !== getReceiptDeletePassword()) return;
               r.tagType = r.tagType === tagId ? null : tagId;
               r.tagged = !!r.tagType;
               localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
@@ -6109,7 +6062,7 @@
             btn.addEventListener("click", async () => {
               const receiptId = btn.dataset.receipt;
               const pw = await showGlobalModal({ title: "Lösenord", subtitle: `Radera kvitto #${receiptId}?`, type: "password", confirmLabel: "Radera" });
-              if (await hashLösenord(pw) !== getReceiptDeletePwHash()) return;
+              if (pw !== getReceiptDeletePassword()) return;
               let receipts = loadReceipts();
               receipts = receipts.filter(r => String(r.id) !== String(receiptId));
               localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
@@ -6126,7 +6079,7 @@
               const receipts = loadReceipts();
               const count = receipts.filter(r => r.tagType === tagId).length;
               const pw = await showGlobalModal({ title: "Lösenord", subtitle: `Radera ${count} kvitton med taggen "${tagLabel}"?`, type: "password", confirmLabel: "Radera alla" });
-              if (await hashLösenord(pw) !== getReceiptDeletePwHash()) return;
+              if (pw !== getReceiptDeletePassword()) return;
               const filtered = receipts.filter(r => r.tagType !== tagId);
               localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(filtered));
               fbSyncAfterSave(RECEIPT_STORAGE_KEY);
@@ -6408,11 +6361,11 @@
     /* ── Bootstrap ── */
     async function bootstrap() {
       // 1. Ladda från Firebase (3s timeout, fallback till localStorage)
-      try { await loadFromFirebase(); } catch(e) { console.warn("Firebase load failed:", e); }
-      // 2. Migrera lösenord till hashes (körs en gång per enhet)
-      try { await migratePasswordsToHashes(); } catch(e) { console.warn("Password migration failed:", e); }
-      // 3. Migrera saknade nycklar från localStorage → Firebase
-      try { if (window._fbDb) await migrateToFirebase(); } catch(e) { console.warn("Firebase migration failed:", e); }
+      await loadFromFirebase();
+      // 2. Migrera saknade nycklar från localStorage → Firebase
+      if (window._fbDb) {
+        await migrateToFirebase();
+      }
       _fbReady = true;
 
       // 2. Ladda kategori-data (kan ha uppdaterats från Firebase)
