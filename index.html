@@ -280,6 +280,30 @@
       margin-top: 6px;
     }
 
+    /* Erbjudande välj-knapp */
+    .erbjudande-välj-knapp {
+      background: linear-gradient(135deg, #72383D, #8B4449);
+      color: #EFE9E1;
+      border: none;
+      border-radius: 12px;
+      padding: 10px 18px;
+      font-family: Georgia, serif;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(114,56,61,0.4);
+      transition: transform 0.15s, box-shadow 0.15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .erbjudande-välj-knapp:hover {
+      transform: scale(1.05);
+      box-shadow: 0 6px 20px rgba(114,56,61,0.5);
+    }
+    .erbjudande-välj-knapp:active {
+      transform: scale(0.97);
+    }
+
     /* Erbjudande-pil-bubbla */
     .erbjudande-pil-wrapper {
       display: flex;
@@ -1849,7 +1873,7 @@
                 <div>
                   <h2 class="section-title" style="font-size:36px;">Just nu</h2>
                   <div class="offers-grid" id="offersGrid"></div>
-                  <div class="erbjudande-pil-wrapper">
+                  <div class="erbjudande-pil-wrapper" id="erbjudandePilWrapper">
                     <div class="erbjudande-pil-bubbla">
                       <span class="pil-emoji">👆</span>
                       <p class="pil-text">Nu funkar den faktiskt!</p>
@@ -1934,6 +1958,23 @@
                       <div id="offersEditorContainer"></div>
                       <button class="admin-btn" id="addOfferBtn" type="button" style="margin-bottom:10px;">+ Lägg till erbjudande</button>
                       <button class="admin-btn" id="saveOffersBtn" type="button">Spara erbjudanden</button>
+
+                      <div class="offer-edit-card" style="margin-top:20px;">
+                        <h4>Flytande tips-bubbla</h4>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                          <input type="checkbox" id="bubblaVisaToggle" />
+                          <label for="bubblaVisaToggle" style="font-family:Georgia,serif;color:#2c3e35;">Visa bubbla i kioskvyn</label>
+                        </div>
+                        <div style="margin-top:8px;">
+                          <label class="admin-input-label">Text rad 1</label>
+                          <input class="admin-input" type="text" id="bubblaTextRad1" placeholder="Nu funkar den faktiskt!" />
+                        </div>
+                        <div>
+                          <label class="admin-input-label">Text rad 2</label>
+                          <input class="admin-input" type="text" id="bubblaTextRad2" placeholder="Tryck & spara 5 kr 🎉" />
+                        </div>
+                        <button class="admin-btn" id="saveBubblaBtn" type="button" style="margin-top:8px;">Spara bubbla-inställningar</button>
+                      </div>
                     </div>
 
                     <!-- Produkter -->
@@ -2316,6 +2357,7 @@
     const NOLLA_ALLT_KEY = "nolladAllt";
     const RENSA_PW_KEY = "zivert-holm-rensa-pw-v1";
     const DEFAULT_RENSA_PW = "123456";
+    const BUBBLA_STORAGE_KEY = "zivert-holm-bubbla-v1";
     const IS_MOBILE_VIEW = window.location.search.includes("mobile") || window.innerWidth < 768;
 
     function getMobileAdminPassword() {
@@ -2337,7 +2379,8 @@
       [RECEIPT_COUNTER_KEY]:        "receiptCounter",
       [MOBILE_ADMIN_PW_KEY]:        "mobileAdminPw",
       [RECEIPT_DELETE_PASSWORD_KEY]: "receiptDeletePw",
-      [RENSA_PW_KEY]:               "rensaLösenord"
+      [RENSA_PW_KEY]:               "rensaLösenord",
+      [BUBBLA_STORAGE_KEY]:          "bubblainställningar"
     };
     // Settings uses literal string in some places
     const FB_SETTINGS_KEY = "installningar";
@@ -2409,6 +2452,7 @@
         if (data.mobileAdminPw)   localStorage.setItem(MOBILE_ADMIN_PW_KEY, data.mobileAdminPw);
         if (data.receiptDeletePw) localStorage.setItem(RECEIPT_DELETE_PASSWORD_KEY, data.receiptDeletePw);
         if (data["rensaLösenord"])  localStorage.setItem(RENSA_PW_KEY, data["rensaLösenord"]);
+        if (data["bubblainställningar"]) localStorage.setItem(BUBBLA_STORAGE_KEY, JSON.stringify(data["bubblainställningar"]));
         if (data.nolladAllt)       localStorage.setItem(NOLLA_ALLT_KEY, "true");
         _fbSyncPaused = false;
         _fbReady = true;
@@ -2489,6 +2533,7 @@
         if (data.rapport)     localStorage.setItem(SALES_STORAGE_KEY, JSON.stringify(data.rapport));
         if (data.onskningar)  localStorage.setItem(WISHES_STORAGE_KEY, JSON.stringify(data.onskningar));
         if (data.taggar)      localStorage.setItem(TAGS_STORAGE_KEY, JSON.stringify(data.taggar));
+        if (data["bubblainställningar"]) localStorage.setItem(BUBBLA_STORAGE_KEY, JSON.stringify(data["bubblainställningar"]));
         if (data.kvitton && Array.isArray(data.kvitton)) {
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(data.kvitton));
         }
@@ -2790,6 +2835,19 @@
       fbSyncAfterSave(OFFERS_STORAGE_KEY);
     }
 
+    /* ── Bubbla-inställningar ── */
+    const DEFAULT_BUBBLA = { visaBubbla: true, textRad1: "Nu funkar den faktiskt!", textRad2: "Tryck & spara 5 kr 🎉" };
+    function loadBubblaInställningar() {
+      try {
+        const raw = localStorage.getItem(BUBBLA_STORAGE_KEY);
+        return raw ? { ...DEFAULT_BUBBLA, ...JSON.parse(raw) } : { ...DEFAULT_BUBBLA };
+      } catch(e) { return { ...DEFAULT_BUBBLA }; }
+    }
+    function saveBubblaInställningar(data) {
+      localStorage.setItem(BUBBLA_STORAGE_KEY, JSON.stringify(data));
+      fbSyncAfterSave(BUBBLA_STORAGE_KEY);
+    }
+
     /* ── Catalog ── */
     function normalizeCatalog(raw) {
       if (!Array.isArray(raw) || !raw.length) return cloneDefaultCategories();
@@ -2950,7 +3008,7 @@
         showAdminSection(section);
         if (section === "report") renderReport(state.currentReportMode);
         if (section === "products") renderCatalogEditor();
-        if (section === "offers") loadOffersIntoEditor();
+        if (section === "offers") { loadOffersIntoEditor(); loadBubblaIntoEditor(); }
         if (section === "settings") initSettingsForm();
         if (section === "wishes") renderWishes();
         if (section === "receipts") renderReceiptsAdmin();
@@ -2979,18 +3037,29 @@
     }
     function renderOffers() {
       const offers = loadOffers();
+      const bubblaInst = loadBubblaInställningar();
       offersGrid.innerHTML = offers.map((o, i) => `
-        <div class="offer-card" style="cursor:pointer;" data-offer-idx="${i}">
+        <div class="offer-card" style="cursor:pointer;display:flex;align-items:center;gap:12px;" data-offer-idx="${i}">
           <div class="offer-pill">${escapeHtml(o.type)}</div>
-          <div class="offer-info">
+          <div class="offer-info" style="flex:1;">
             <div class="offer-title">${escapeHtml(o.title)}</div>
             <div class="offer-desc">${escapeHtml(o.desc)}</div>
             ${o.price ? `<div class="offer-price">${escapeHtml(o.price)}</div>` : ""}
           </div>
+          ${o.paketpris ? `<button class="erbjudande-välj-knapp" data-offer-idx="${i}">Ja, tack! 🛒</button>` : ""}
         </div>
       `).join("");
 
-      // Click handler for offer cards
+      // Click handler for välj-knappar
+      offersGrid.querySelectorAll(".erbjudande-välj-knapp").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const idx = parseInt(btn.dataset.offerIdx);
+          const offer = offers[idx];
+          if (offer) läggTillErbjudande(offer);
+        });
+      });
+      // Click handler for whole card
       offersGrid.querySelectorAll(".offer-card").forEach(card => {
         card.addEventListener("click", () => {
           const idx = parseInt(card.dataset.offerIdx);
@@ -2999,6 +3068,20 @@
           läggTillErbjudande(offer);
         });
       });
+
+      // Render bubbla
+      const bubblaEl = document.getElementById("erbjudandePilWrapper");
+      if (bubblaEl) {
+        if (bubblaInst.visaBubbla) {
+          bubblaEl.style.display = "flex";
+          const textEl = bubblaEl.querySelector(".pil-text");
+          const subEl = bubblaEl.querySelector(".pil-subtext");
+          if (textEl) textEl.textContent = bubblaInst.textRad1;
+          if (subEl) subEl.textContent = bubblaInst.textRad2;
+        } else {
+          bubblaEl.style.display = "none";
+        }
+      }
     }
 
     function läggTillErbjudande(offer) {
@@ -3858,6 +3941,29 @@
       });
       return offers;
     }
+
+    /* ── Bubbla editor ── */
+    function loadBubblaIntoEditor() {
+      const b = loadBubblaInställningar();
+      const toggle = document.getElementById("bubblaVisaToggle");
+      const rad1 = document.getElementById("bubblaTextRad1");
+      const rad2 = document.getElementById("bubblaTextRad2");
+      if (toggle) toggle.checked = b.visaBubbla;
+      if (rad1) rad1.value = b.textRad1;
+      if (rad2) rad2.value = b.textRad2;
+    }
+    document.getElementById("saveBubblaBtn").addEventListener("click", () => {
+      const data = {
+        visaBubbla: document.getElementById("bubblaVisaToggle").checked,
+        textRad1: document.getElementById("bubblaTextRad1").value || DEFAULT_BUBBLA.textRad1,
+        textRad2: document.getElementById("bubblaTextRad2").value || DEFAULT_BUBBLA.textRad2
+      };
+      saveBubblaInställningar(data);
+      renderOffers();
+      const btn = document.getElementById("saveBubblaBtn");
+      btn.textContent = "Sparat ✓";
+      setTimeout(() => { btn.textContent = "Spara bubbla-inställningar"; }, 1400);
+    });
 
     /* ── Settings editor ── */
     function loadSwishSettings() {
