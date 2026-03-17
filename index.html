@@ -1400,6 +1400,14 @@
                           <div class="stat-label">Summerat värde</div>
                           <div class="stat-value" id="reportTotalValue">0 kr</div>
                         </div>
+                        <div class="stat-card">
+                          <div class="stat-label">Taggade TEST</div>
+                          <div class="stat-value" id="reportTestStat" style="color:#ffd966;font-size:18px;">0</div>
+                        </div>
+                        <div class="stat-card">
+                          <div class="stat-label">Utlägg</div>
+                          <div class="stat-value" id="reportUtlaggStat" style="color:#86efac;font-size:18px;">0</div>
+                        </div>
                       </div>
                       <p class="report-meta-text" id="reportMetaText">Välj ett tidsintervall ovan.</p>
                       <div class="report-output" id="reportOutput"></div>
@@ -1564,11 +1572,12 @@
                       </div>
 
                       <!-- Column headers -->
-                      <div style="display:grid;grid-template-columns:1fr 90px 90px 100px 40px;gap:8px;margin-bottom:6px;padding:0 2px;">
+                      <div style="display:grid;grid-template-columns:1fr 90px 90px 100px 80px 40px;gap:8px;margin-bottom:6px;padding:0 2px;">
                         <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,.6);">Produkt</span>
                         <span style="font-size:13px;font-weight:700;color:#ffd966;text-align:center;">Lager</span>
                         <span style="font-size:13px;font-weight:700;color:#6c63ff;text-align:center;">Stock</span>
                         <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,.6);text-align:center;">Fyll på</span>
+                        <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,.6);text-align:center;">Justera</span>
                         <span></span>
                       </div>
 
@@ -1745,6 +1754,36 @@
             <div class="admin-modal-actions">
               <button class="modal-btn cancel" id="receiptTagCancelBtn" type="button">Avbryt</button>
               <button class="modal-btn" id="receiptTagConfirmBtn" type="button">Bekräfta</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Global modal -->
+        <div class="global-modal-overlay" id="globalModalOverlay" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center;">
+          <div style="background:linear-gradient(160deg,#1e1b3a,#2d2b50);border:1px solid rgba(255,255,255,.12);border-radius:22px;padding:28px;width:460px;display:flex;flex-direction:column;gap:16px;box-shadow:0 24px 56px rgba(0,0,0,.6);">
+            <div style="font-size:28px;font-style:italic;color:#fff;" id="globalModalTitle">Bekräfta</div>
+            <div style="font-size:16px;color:rgba(255,255,255,.6);" id="globalModalSubtitle"></div>
+            <input
+              class="catalog-input"
+              type="password"
+              id="globalModalInput"
+              placeholder="Ange lösenord"
+              autocomplete="off"
+              style="display:none;"
+            />
+            <input
+              class="catalog-input"
+              type="number"
+              id="globalModalNumberInput"
+              placeholder="Antal"
+              min="0"
+              step="1"
+              style="display:none;"
+            />
+            <div style="font-size:14px;color:#f87171;min-height:20px;" id="globalModalError"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <button class="modal-btn cancel" id="globalModalCancelBtn" type="button">Avbryt</button>
+              <button class="modal-btn" id="globalModalConfirmBtn" type="button">Bekräfta</button>
             </div>
           </div>
         </div>
@@ -1953,7 +1992,8 @@
         time: new Date().toISOString(),
         items: cart.map(i => ({ name: i.name, qty: i.qty, sum: i.sum })),
         total,
-        tagged: false
+        tagged: false,
+        tagType: null
       });
       localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
     }
@@ -2477,15 +2517,15 @@
         return true;
       });
 
-      const test = filtered.filter(r => r.tagged === "test" || r.tagged === true);
-      const eget = filtered.filter(r => r.tagged === "eget_bruk");
+      const test = filtered.filter(r => r.tagType === 'TEST' || (r.tagged === "test" || r.tagged === true));
+      const utlagg = filtered.filter(r => r.tagType === 'UTLAGG' || r.tagged === "eget_bruk");
       return {
         testCount: test.length,
         testTotal: test.reduce((s, r) => s + Number(r.total), 0),
         testItems: test.flatMap(r => r.items || []),
-        egetCount: eget.length,
-        egetTotal: eget.reduce((s, r) => s + Number(r.total), 0),
-        egetItems: eget.flatMap(r => r.items || [])
+        utlaggCount: utlagg.length,
+        utlaggTotal: utlagg.reduce((s, r) => s + Number(r.total), 0),
+        utlaggItems: utlagg.flatMap(r => r.items || [])
       };
     }
 
@@ -2501,6 +2541,12 @@
       reportItemsCount.textContent = agg.totalItems;
       reportTotalValue.textContent = formatKr(agg.totalValue);
       reportMetaText.textContent = buildMetaText(mode, agg.totalTransactions);
+
+      // Tag stats
+      const reportTestEl = document.getElementById("reportTestStat");
+      const reportUtlaggEl = document.getElementById("reportUtlaggStat");
+      if (reportTestEl) reportTestEl.textContent = tags.testCount > 0 ? `${tags.testCount} st / −${tags.testTotal} kr` : "0";
+      if (reportUtlaggEl) reportUtlaggEl.textContent = tags.utlaggCount > 0 ? `${tags.utlaggCount} st / ${tags.utlaggTotal} kr` : "0";
 
       let html = "";
       if (!agg.categories.length) {
@@ -2540,21 +2586,21 @@
           </div>`;
       }
 
-      if (tags.egetCount > 0) {
+      if (tags.utlaggCount > 0) {
         const grouped = {};
-        tags.egetItems.forEach(i => {
+        tags.utlaggItems.forEach(i => {
           const k = i.name;
           if (!grouped[k]) grouped[k] = 0;
           grouped[k] += Number(i.qty || 0);
         });
         html += `
-          <div class="report-group" style="border:1px solid rgba(108,99,255,.3);background:rgba(108,99,255,.04);margin-top:12px;">
-            <h4 style="color:#a78bfa;">🏠 Eget bruk (−${tags.egetTotal} kr)</h4>
-            <div style="font-size:14px;color:rgba(255,255,255,.45);margin-bottom:8px;">${tags.egetCount} kvitton taggade som eget bruk — varor tagna för eget bruk.</div>
+          <div class="report-group" style="border:1px solid rgba(100,200,100,.3);background:rgba(100,200,100,.04);margin-top:12px;">
+            <h4 style="color:#86efac;">💰 Utlägg (${tags.utlaggTotal} kr)</h4>
+            <div style="font-size:14px;color:rgba(255,255,255,.45);margin-bottom:8px;">${tags.utlaggCount} kvitton taggade som utlägg.</div>
             ${Object.entries(grouped).map(([name, qty]) => `
               <div class="report-row">
                 <span>${escapeHtml(name)}</span>
-                <strong>−${escapeHtml(qty)} st</strong>
+                <strong>${escapeHtml(qty)} st</strong>
               </div>
             `).join("")}
           </div>`;
@@ -2692,7 +2738,16 @@
       categories = readCatalogFromEditor();
       const cat = categories.find(c => c.key === catKey);
       if (!cat) return;
+      const item = cat.items.find(it => it.id === itemId);
       cat.items = cat.items.filter(it => it.id !== itemId);
+      // Remove from inventory
+      if (item) {
+        const inv = loadInventory();
+        if (inv[item.name] !== undefined) {
+          delete inv[item.name];
+          saveInventory(inv);
+        }
+      }
       syncCatalogAndRefresh("Produkt borttagen.");
     }
     function removeCategory(catKey) {
@@ -2837,7 +2892,7 @@
       }
 
       document.getElementById("changePwModal").style.display = "none";
-      alert("Lösenord bytt!");
+      showGlobalModal({ title: "Klart!", subtitle: "Lösenord har bytts.", type: "confirm", confirmLabel: "OK" });
     });
 
     /* ── Event wiring ── */
@@ -3086,11 +3141,15 @@
       const meta = document.getElementById("receiptsMetaText");
       const list = document.getElementById("receiptsList");
 
-      const taggedTotal = receipts
-        .filter(r => r.tagged)
-        .reduce((s, r) => s + Number(r.total), 0);
+      const testReceipts = receipts.filter(r => r.tagType === 'TEST');
+      const utlaggReceipts = receipts.filter(r => r.tagType === 'UTLAGG');
+      const testTotal = testReceipts.reduce((s, r) => s + Number(r.total), 0);
+      const utlaggTotal = utlaggReceipts.reduce((s, r) => s + Number(r.total), 0);
 
-      meta.textContent = `Totalt ${receipts.length} kvitton.${taggedTotal > 0 ? ` Varav ${receipts.filter(r=>r.tagged).length} taggade som TEST (−${taggedTotal} kr).` : ""}`;
+      let metaText = `Totalt ${receipts.length} kvitton.`;
+      if (testTotal > 0) metaText += ` TEST: ${testReceipts.length} st (−${testTotal} kr).`;
+      if (utlaggTotal > 0) metaText += ` UTLÄGG: ${utlaggReceipts.length} st (${utlaggTotal} kr).`;
+      meta.textContent = metaText;
 
       if (!receipts.length) {
         list.innerHTML = '<div class="report-empty">Inga kvitton registrerade ännu.</div>';
@@ -3101,20 +3160,34 @@
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
           <button class="catalog-small-btn" id="selectAllReceiptsBtn" type="button">Markera alla</button>
           <button class="catalog-small-btn" id="deselectAllReceiptsBtn" type="button">Avmarkera alla</button>
-          <button class="catalog-small-btn" id="tagSelectedBtn" type="button" style="background:linear-gradient(135deg,#6c63ff,#3b82f6);color:#fff;border:none;display:none;">Tagga markerade</button>
+          <button class="catalog-small-btn" id="tagSelectedTestBtn" type="button" style="background:rgba(255,180,0,.3);color:#ffd966;border:none;display:none;">Tagga alla TEST</button>
+          <button class="catalog-small-btn" id="tagSelectedUtlaggBtn" type="button" style="background:rgba(100,200,100,.2);color:#86efac;border:none;display:none;">Tagga alla UTLÄGG</button>
         </div>
-        ${receipts.map(r => `
-          <div class="report-group" style="margin-bottom:10px;${r.tagged ? 'opacity:.55;border:1px solid rgba(255,180,0,.3);' : ''}">
+        ${receipts.map(r => {
+          const tagStyle = r.tagType === 'TEST' ? 'opacity:.55;border:1px solid rgba(255,180,0,.3);'
+            : r.tagType === 'UTLAGG' ? 'opacity:.55;border:1px solid rgba(100,200,100,.3);' : '';
+          return `
+          <div class="report-group" style="margin-bottom:10px;${tagStyle}">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
               <div style="display:flex;align-items:center;gap:10px;">
                 <input type="checkbox" class="receipt-checkbox" data-receipt-id="${escapeHtml(r.id)}" style="width:20px;height:20px;cursor:pointer;" />
                 <span style="font-size:24px;font-weight:700;color:#ffd966;">#${escapeHtml(r.id)}</span>
-                ${r.tagged ? '<span style="font-size:12px;background:rgba(255,180,0,.2);color:#ffd966;padding:3px 10px;border-radius:6px;letter-spacing:1px;">TEST</span>' : ''}
+                ${r.tagType === 'TEST' ? '<span style="font-size:12px;background:rgba(255,180,0,.2);color:#ffd966;padding:3px 10px;border-radius:6px;letter-spacing:1px;">TEST</span>' : ''}
+                ${r.tagType === 'UTLAGG' ? '<span style="font-size:12px;background:rgba(100,200,100,.15);color:#86efac;padding:3px 10px;border-radius:6px;letter-spacing:1px;">UTLÄGG</span>' : ''}
               </div>
-              <div style="display:flex;align-items:center;gap:10px;">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                 <span style="font-size:14px;color:rgba(255,255,255,.45);">${new Date(r.time).toLocaleString("sv-SE")}</span>
-                <button class="catalog-small-btn" type="button" data-receipt-tag="${escapeHtml(r.id)}" style="font-size:13px;padding:4px 12px;">
-                  ${r.tagged ? "Avmarkera TEST" : "Tagga som TEST"}
+                <button class="catalog-small-btn" type="button"
+                  data-receipt-tag="${escapeHtml(r.id)}"
+                  data-tag-type="TEST"
+                  style="font-size:12px;padding:3px 10px;${r.tagType === 'TEST' ? 'background:rgba(255,180,0,.3);color:#ffd966;' : ''}">
+                  ${r.tagType === 'TEST' ? '✓ TEST' : 'Tagga TEST'}
+                </button>
+                <button class="catalog-small-btn" type="button"
+                  data-receipt-tag="${escapeHtml(r.id)}"
+                  data-tag-type="UTLAGG"
+                  style="font-size:12px;padding:3px 10px;${r.tagType === 'UTLAGG' ? 'background:rgba(100,200,100,.2);color:#86efac;' : ''}">
+                  ${r.tagType === 'UTLAGG' ? '✓ UTLÄGG' : 'Tagga UTLÄGG'}
                 </button>
               </div>
             </div>
@@ -3125,70 +3198,115 @@
               </div>
             `).join("")}
             <div style="margin-top:8px;font-size:22px;font-weight:700;color:#fff;text-align:right;">
-              ${r.tagged ? `<span style="text-decoration:line-through;opacity:.5;">${escapeHtml(r.total)} kr</span>` : `${escapeHtml(r.total)} kr`}
+              ${r.tagType ? `<span style="text-decoration:line-through;opacity:.5;">${escapeHtml(r.total)} kr</span>` : `${escapeHtml(r.total)} kr`}
             </div>
-          </div>
-        `).join("")}
+          </div>`;
+        }).join("")}
       `;
 
       // Checkbox logik
-      function updateTagSelectedBtn() {
+      function updateTagSelectedBtns() {
         const checked = document.querySelectorAll(".receipt-checkbox:checked");
-        const btn = document.getElementById("tagSelectedBtn");
-        if (btn) btn.style.display = checked.length > 0 ? "block" : "none";
+        const show = checked.length > 0;
+        const testBtn = document.getElementById("tagSelectedTestBtn");
+        const utlaggBtn = document.getElementById("tagSelectedUtlaggBtn");
+        if (testBtn) testBtn.style.display = show ? "block" : "none";
+        if (utlaggBtn) utlaggBtn.style.display = show ? "block" : "none";
       }
 
       list.querySelectorAll(".receipt-checkbox").forEach(cb => {
-        cb.addEventListener("change", updateTagSelectedBtn);
+        cb.addEventListener("change", updateTagSelectedBtns);
       });
 
       document.getElementById("selectAllReceiptsBtn").addEventListener("click", () => {
         document.querySelectorAll(".receipt-checkbox").forEach(cb => cb.checked = true);
-        updateTagSelectedBtn();
+        updateTagSelectedBtns();
       });
 
       document.getElementById("deselectAllReceiptsBtn").addEventListener("click", () => {
         document.querySelectorAll(".receipt-checkbox").forEach(cb => cb.checked = false);
-        updateTagSelectedBtn();
+        updateTagSelectedBtns();
       });
 
-      document.getElementById("tagSelectedBtn").addEventListener("click", () => {
+      // Bulk tag TEST
+      document.getElementById("tagSelectedTestBtn").addEventListener("click", async () => {
         const checked = Array.from(document.querySelectorAll(".receipt-checkbox:checked"));
         if (!checked.length) return;
-
-        const pw = prompt(`Ange kvitto-lösenord för att tagga ${checked.length} kvitto(n):`);
+        const pw = await showGlobalModal({
+          title: "Kvitto-lösenord",
+          subtitle: `Tagga ${checked.length} kvitto(n) som TEST.`,
+          type: "password",
+          confirmLabel: "Bekräfta"
+        });
+        if (pw === null) return;
         if (pw !== getReceiptDeletePassword()) {
-          alert("Fel lösenord.");
+          document.getElementById("globalModalError").textContent = "Fel lösenord.";
           return;
         }
-
+        closeGlobalModal();
         const receipts = loadReceipts();
-        const ids = checked.map(cb => cb.dataset.receiptId);
-        const allTagged = ids.every(id => {
-          const r = receipts.find(r => r.id === id);
-          return r && r.tagged;
+        const ids = new Set(checked.map(cb => cb.dataset.receiptId));
+        receipts.forEach(r => {
+          if (ids.has(r.id)) { r.tagged = true; r.tagType = 'TEST'; }
         });
+        localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
+        renderReceiptsAdmin();
+      });
 
-        ids.forEach(id => {
-          const r = receipts.find(r => r.id === id);
-          if (r) r.tagged = !allTagged;
+      // Bulk tag UTLÄGG
+      document.getElementById("tagSelectedUtlaggBtn").addEventListener("click", async () => {
+        const checked = Array.from(document.querySelectorAll(".receipt-checkbox:checked"));
+        if (!checked.length) return;
+        const pw = await showGlobalModal({
+          title: "Kvitto-lösenord",
+          subtitle: `Tagga ${checked.length} kvitto(n) som UTLÄGG.`,
+          type: "password",
+          confirmLabel: "Bekräfta"
         });
-
+        if (pw === null) return;
+        if (pw !== getReceiptDeletePassword()) {
+          document.getElementById("globalModalError").textContent = "Fel lösenord.";
+          return;
+        }
+        closeGlobalModal();
+        const receipts = loadReceipts();
+        const ids = new Set(checked.map(cb => cb.dataset.receiptId));
+        receipts.forEach(r => {
+          if (ids.has(r.id)) { r.tagged = true; r.tagType = 'UTLAGG'; }
+        });
         localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
         renderReceiptsAdmin();
       });
 
       // Enskild tagg-knapp
       list.querySelectorAll("[data-receipt-tag]").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const pw = prompt("Ange kvitto-lösenord:");
+        btn.addEventListener("click", async () => {
+          const pw = await showGlobalModal({
+            title: "Kvitto-lösenord",
+            subtitle: "Ange lösenord för att ändra tagg.",
+            type: "password",
+            confirmLabel: "Bekräfta"
+          });
+          if (pw === null) return;
           if (pw !== getReceiptDeletePassword()) {
-            alert("Fel lösenord.");
+            document.getElementById("globalModalError").textContent = "Fel lösenord.";
             return;
           }
+          closeGlobalModal();
+
           const receipts = loadReceipts();
           const r = receipts.find(r => r.id === btn.dataset.receiptTag);
-          if (r) r.tagged = !r.tagged;
+          if (!r) return;
+
+          const tagType = btn.dataset.tagType;
+          if (r.tagType === tagType) {
+            r.tagged = false;
+            r.tagType = null;
+          } else {
+            r.tagged = tagType === 'TEST';
+            r.tagType = tagType;
+          }
+
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
           renderReceiptsAdmin();
         });
@@ -3264,7 +3382,7 @@
         ).join("");
 
         return `
-          <div class="catalog-item-row" style="margin-bottom:6px;display:grid;grid-template-columns:1fr 90px 90px 100px 40px;gap:8px;align-items:center;">
+          <div class="catalog-item-row" style="margin-bottom:6px;display:grid;grid-template-columns:1fr 90px 90px 100px 80px 40px;gap:8px;align-items:center;">
             <select class="catalog-input inv-name-select" data-inv-key="${escapeHtml(name)}" style="padding:8px;border-radius:8px;background:#1e1e2e;color:#fff;border:1px solid rgba(255,255,255,.15);font-size:14px;">
               ${options}
             </select>
@@ -3273,6 +3391,7 @@
               ${stock}${low ? ' ⚠' : ''}
             </div>
             <button class="catalog-small-btn inv-refill-btn" type="button" data-inv-key="${escapeHtml(name)}" style="font-size:13px;padding:6px 8px;">🔄 Fyll på</button>
+            <button class="catalog-small-btn inv-adjust-btn" type="button" data-inv-key="${escapeHtml(name)}" style="background:rgba(255,255,255,.08);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.12);font-size:13px;padding:6px 8px;">Justera</button>
             <button class="catalog-small-btn danger inv-remove-btn" type="button" data-inv-key="${escapeHtml(name)}">✕</button>
           </div>
         `;
@@ -3280,11 +3399,19 @@
 
       // Refill button: move from lager to stock
       editor.querySelectorAll(".inv-refill-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
+        btn.addEventListener("click", async () => {
           const key = btn.dataset.invKey;
           const inv = loadInventory();
           if (inv[key] && typeof inv[key] === "object" && inv[key].lager > 0) {
-            const amount = parseInt(prompt("Hur många vill du flytta från Lager → Stock?", inv[key].lager));
+            const lagerKvar = inv[key].lager;
+            const input = await showGlobalModal({
+              title: "Fyll på Stock",
+              subtitle: `Hur många vill du flytta från Lager till Stock? (${lagerKvar} kvar i lager)`,
+              type: "number",
+              confirmLabel: "Fyll på"
+            });
+            if (input === null) return;
+            const amount = parseInt(input);
             if (!isNaN(amount) && amount > 0) {
               const actual = Math.min(amount, inv[key].lager);
               inv[key].lager -= actual;
@@ -3293,6 +3420,29 @@
               renderInventoryEditor();
             }
           }
+        });
+      });
+
+      // Adjust stock manually
+      editor.querySelectorAll(".inv-adjust-btn").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const key = btn.dataset.invKey;
+          const inv = loadInventory();
+          const current = inv[key] || { lager: 0, stock: 0 };
+
+          const input = await showGlobalModal({
+            title: "Justera Stock",
+            subtitle: `Nuvarande stock: ${current.stock}. Ange nytt värde.`,
+            type: "number",
+            confirmLabel: "Spara"
+          });
+
+          if (input === null) return;
+          const newStock = Math.max(0, parseInt(input) || 0);
+          current.stock = newStock;
+          inv[key] = current;
+          saveInventory(inv);
+          renderInventoryEditor();
         });
       });
 
@@ -3343,6 +3493,74 @@
     });
 
     initInventoryIfEmpty();
+
+    /* ── Global modal ── */
+    let globalModalResolve = null;
+
+    function showGlobalModal({ title, subtitle = "", type = "password", confirmLabel = "Bekräfta" }) {
+      return new Promise((resolve) => {
+        globalModalResolve = resolve;
+
+        document.getElementById("globalModalTitle").textContent = title;
+        document.getElementById("globalModalSubtitle").textContent = subtitle;
+        document.getElementById("globalModalError").textContent = "";
+        document.getElementById("globalModalConfirmBtn").textContent = confirmLabel;
+
+        const pwInput = document.getElementById("globalModalInput");
+        const numInput = document.getElementById("globalModalNumberInput");
+
+        if (type === "password") {
+          pwInput.style.display = "block";
+          pwInput.value = "";
+          numInput.style.display = "none";
+          setTimeout(() => pwInput.focus(), 50);
+        } else if (type === "number") {
+          numInput.style.display = "block";
+          numInput.value = "";
+          pwInput.style.display = "none";
+          setTimeout(() => numInput.focus(), 50);
+        } else {
+          pwInput.style.display = "none";
+          numInput.style.display = "none";
+        }
+
+        const overlay = document.getElementById("globalModalOverlay");
+        overlay.style.display = "flex";
+      });
+    }
+
+    function closeGlobalModal(value = null) {
+      document.getElementById("globalModalOverlay").style.display = "none";
+      if (globalModalResolve) {
+        globalModalResolve(value);
+        globalModalResolve = null;
+      }
+    }
+
+    document.getElementById("globalModalCancelBtn").addEventListener("click", () => closeGlobalModal(null));
+
+    document.getElementById("globalModalConfirmBtn").addEventListener("click", () => {
+      const pwInput = document.getElementById("globalModalInput");
+      const numInput = document.getElementById("globalModalNumberInput");
+
+      if (pwInput.style.display !== "none") {
+        closeGlobalModal(pwInput.value);
+      } else if (numInput.style.display !== "none") {
+        closeGlobalModal(numInput.value);
+      } else {
+        closeGlobalModal(true);
+      }
+    });
+
+    document.getElementById("globalModalInput").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") document.getElementById("globalModalConfirmBtn").click();
+      if (e.key === "Escape") closeGlobalModal(null);
+    });
+
+    document.getElementById("globalModalNumberInput").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") document.getElementById("globalModalConfirmBtn").click();
+      if (e.key === "Escape") closeGlobalModal(null);
+    });
 
     /* ── Bootstrap ── */
     cleanupQtyState();
