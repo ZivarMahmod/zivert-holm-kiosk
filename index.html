@@ -1406,6 +1406,56 @@
       white-space: nowrap;
     }
 
+    /* ── Mobile admin view ── */
+    .mobile-admin-view {
+      width: 100%;
+      min-height: 100dvh;
+      overflow-y: auto;
+      padding: 16px;
+      padding-top: calc(env(safe-area-inset-top, 0px) + 64px);
+      box-sizing: border-box;
+      font-size: 16px;
+      color: #fff;
+    }
+    .mobile-admin-view h3 { font-size: 20px; margin: 0 0 16px; font-style: italic; color: #fff; }
+    .mobile-admin-view table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .mobile-admin-view th { padding: 8px 6px; text-align: left; border-bottom: 1px solid rgba(255,255,255,.2); color: rgba(255,255,255,.5); font-size: 12px; letter-spacing: 1px; }
+    .mobile-admin-view td { padding: 8px 6px; text-align: left; border-bottom: 1px solid rgba(255,255,255,.06); }
+    .mobile-admin-view .mav-btn {
+      min-height: 44px; width: 100%; font-family: Georgia, serif; font-size: 15px;
+      background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+      border-radius: 10px; color: #fff; cursor: pointer; padding: 10px 16px;
+    }
+    .mobile-admin-view .mav-btn:active { background: rgba(255,255,255,.12); }
+    .mobile-admin-view .mav-card {
+      background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+      border-radius: 14px; padding: 14px; margin-bottom: 10px;
+    }
+    .mobile-admin-view .mav-stat {
+      background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+      border-radius: 12px; padding: 12px; text-align: center;
+    }
+    .mobile-admin-view .mav-stat-label { font-size: 11px; color: rgba(255,255,255,.5); letter-spacing: 1px; margin-bottom: 4px; }
+    .mobile-admin-view .mav-stat-value { font-size: 24px; font-weight: 700; color: #ffd966; }
+    .mobile-admin-view input, .mobile-admin-view textarea {
+      width: 100%; box-sizing: border-box; background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12); border-radius: 8px; color: #fff;
+      font-family: Georgia, serif; font-size: 15px; padding: 10px;
+    }
+    .mav-topbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 91;
+      padding: 12px 20px; padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
+      background: rgba(0,0,0,.5); backdrop-filter: blur(10px);
+      display: flex; align-items: center; gap: 12px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .mav-topbar button {
+      background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.15);
+      border-radius: 10px; color: #fff; font-family: Georgia, serif; font-size: 14px;
+      padding: 8px 14px; cursor: pointer; flex-shrink: 0;
+    }
+    .mav-topbar span { font-size: 18px; font-style: italic; color: #fff; }
+
     /* ── Admin hamburger (mobile responsive) ── */
     .admin-hamburger-btn {
       display: none;
@@ -1508,6 +1558,7 @@
           <span style="font-size:28px;">⚙</span>Inställningar
         </button>
       </div>
+      <div id="mobileAdminContent" style="display:none;"></div>
     </div>
 
     <!-- MOBIL ADMIN-TRIGGER OVERLAY -->
@@ -3932,28 +3983,366 @@
         document.body.style.background = "linear-gradient(135deg,#0f0c29,#302b63,#24243e)";
       });
 
-      // Mobile admin grid buttons — öppna desktop-admin i mobilvy
+      // Mobile admin grid buttons
       document.querySelectorAll(".mobile-admin-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const section = btn.dataset.section;
-          document.getElementById("mobileAdminPanel").style.display = "none";
-          document.getElementById("mobileApp").style.display = "none";
-          const vp = document.querySelector(".viewport");
-          vp.style.display = "block";
-          const stage = document.getElementById("stage");
-          stage.style.width = "100%";
-          stage.style.height = "auto";
-          stage.style.transform = "none";
-          stage.style.transformOrigin = "top left";
-          document.body.style.overflow = "auto";
-          openReportView(state.currentReportMode);
-          showAdminSection(section);
-          if (section === "report") renderReport(state.currentReportMode);
-          if (section === "products") renderCatalogEditor();
-          if (section === "offers") loadOffersIntoEditor();
-          if (section === "settings") initSettingsForm();
-        });
+        btn.addEventListener("click", () => openMobileAdminSection(btn.dataset.section));
       });
+    }
+
+    /* ── Mobile admin section renderer ── */
+    const MAV_SECTION_TITLES = {
+      report: "📊 Rapport", products: "📦 Produkter", inventory: "📦 Lager",
+      offers: "🏷 Erbjudanden", wishes: "💌 Önskningar", receipts: "🧾 Kvitton", settings: "⚙ Inställningar"
+    };
+
+    function openMobileAdminSection(section) {
+      /* Dölj admin-grid, visa content-container */
+      const panel = document.getElementById("mobileAdminPanel");
+      const gridWrap = document.getElementById("mobileAdminGrid").parentElement.parentElement;
+      // Dölj header + grid (de två första barnen i panelen)
+      for (const child of panel.children) {
+        if (child.id !== "mobileAdminContent") child.style.display = "none";
+      }
+      const content = document.getElementById("mobileAdminContent");
+      content.style.display = "block";
+      content.className = "mobile-admin-view";
+      window.scrollTo(0, 0);
+      history.pushState({ view: "mobileAdminSection", section }, "", window.location.href);
+
+      let bodyHtml = "";
+      switch (section) {
+        case "report": bodyHtml = renderMobileAdminReport(); break;
+        case "products": bodyHtml = renderMobileAdminProducts(); break;
+        case "inventory": bodyHtml = renderMobileAdminInventory(); break;
+        case "offers": bodyHtml = renderMobileAdminOffers(); break;
+        case "wishes": bodyHtml = renderMobileAdminWishes(); break;
+        case "receipts": bodyHtml = renderMobileAdminReceipts(); break;
+        case "settings": bodyHtml = renderMobileAdminSettings(); break;
+      }
+
+      content.innerHTML = `
+        <div class="mav-topbar">
+          <button id="mavBackBtn">← Admin-hem</button>
+          <span>${MAV_SECTION_TITLES[section] || section}</span>
+        </div>
+        ${bodyHtml}
+      `;
+
+      document.getElementById("mavBackBtn").addEventListener("click", backToMobileAdminHome);
+      attachMobileAdminEvents(section);
+    }
+
+    function backToMobileAdminHome() {
+      const panel = document.getElementById("mobileAdminPanel");
+      for (const child of panel.children) child.style.display = "";
+      // Visa header + grid igen
+      panel.children[0].style.display = "";
+      document.getElementById("mobileAdminGrid").parentElement.style.display = "";
+      const content = document.getElementById("mobileAdminContent");
+      content.style.display = "none";
+      content.innerHTML = "";
+      window.scrollTo(0, 0);
+    }
+
+    /* ── 1. Rapport ── */
+    function renderMobileAdminReport() {
+      const modes = [
+        { key: "today", label: "Idag" }, { key: "yesterday", label: "Igår" },
+        { key: "week", label: "Vecka" }, { key: "month", label: "Månad" }, { key: "all", label: "Allt" }
+      ];
+      const mode = state.currentReportMode || "today";
+      const sales = getFilteredSales(mode);
+      const agg = aggregateSalesByProduct(sales);
+      const tags = getReceiptTagSummary(mode);
+
+      const modeButtons = modes.map(m =>
+        `<button class="mav-mode-btn mav-btn" data-mode="${m.key}" style="${m.key === mode ? 'background:rgba(108,99,255,.2);border-color:rgba(108,99,255,.4);color:#a78bfa;' : ''}">${m.label}</button>`
+      ).join("");
+
+      let catHtml = "";
+      if (!agg.categories.length) {
+        catHtml = `<div style="text-align:center;color:rgba(255,255,255,.4);padding:20px;">Ingen försäljning i valt urval.</div>`;
+      } else {
+        catHtml = agg.categories.map(cat => `
+          <div class="mav-card">
+            <div style="font-size:14px;color:rgba(255,255,255,.5);margin-bottom:6px;">${escapeHtml(cat.categoryTitle)}</div>
+            ${cat.products.map(p => `
+              <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04);">
+                <span>${escapeHtml(p.name)}</span>
+                <strong style="color:#ffd966;">${p.qty} st</strong>
+              </div>
+            `).join("")}
+          </div>
+        `).join("");
+      }
+
+      let tagHtml = "";
+      Object.values(tags).forEach(t => {
+        if (t.count > 0) {
+          tagHtml += `<div class="mav-card" style="border-color:${t.def.border};">
+            <div style="color:${t.def.color};font-weight:700;margin-bottom:4px;">${t.def.emoji} ${escapeHtml(t.def.label)} — ${t.count} st (−${t.total} kr)</div>
+          </div>`;
+        }
+      });
+
+      return `
+        <div style="display:grid;grid-template-columns:repeat(${modes.length},1fr);gap:6px;margin-bottom:16px;">
+          ${modeButtons}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">
+          <div class="mav-stat"><div class="mav-stat-label">TRANS.</div><div class="mav-stat-value">${agg.totalTransactions}</div></div>
+          <div class="mav-stat"><div class="mav-stat-label">ARTIKLAR</div><div class="mav-stat-value">${agg.totalItems}</div></div>
+          <div class="mav-stat"><div class="mav-stat-label">TOTALT</div><div class="mav-stat-value">${formatKr(agg.totalValue)}</div></div>
+        </div>
+        ${tagHtml}
+        ${catHtml}
+        <button class="mav-btn" id="mavClearReport" style="margin-top:16px;color:#f87171;border-color:rgba(248,113,113,.3);">🗑 Rensa försäljningsdata</button>
+      `;
+    }
+
+    /* ── 2. Produkter ── */
+    function renderMobileAdminProducts() {
+      const cats = loadCatalog();
+      return cats.map(cat => {
+        const emoji = CATEGORY_EMOJI[cat.key] || "🛍";
+        return `
+          <div class="mav-card">
+            <div style="font-size:16px;font-weight:700;margin-bottom:8px;">${emoji} ${escapeHtml(cat.title || cat.key)}</div>
+            ${cat.items.map((item, i) => `
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04);">
+                <div>
+                  <div style="font-style:italic;">${escapeHtml(item.name)}</div>
+                  ${item.note ? `<div style="font-size:12px;color:rgba(255,255,255,.4);">${escapeHtml(item.note)}</div>` : ""}
+                </div>
+                <div style="color:#ffd966;font-weight:700;white-space:nowrap;">${item.price} kr</div>
+              </div>
+            `).join("")}
+          </div>
+        `;
+      }).join("");
+    }
+
+    /* ── 3. Lager ── */
+    function renderMobileAdminInventory() {
+      initInventoryIfEmpty();
+      const inv = loadInventory();
+      const rows = Object.entries(inv).sort((a, b) => a[0].localeCompare(b[0], "sv"));
+      if (!rows.length) return `<div style="color:rgba(255,255,255,.4);text-align:center;">Inga produkter i lagret.</div>`;
+      return `
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>PRODUKT</th><th>LAGER</th><th>STOCK</th><th></th></tr></thead>
+            <tbody>
+              ${rows.map(([name, data]) => `
+                <tr>
+                  <td style="font-style:italic;">${escapeHtml(name)}</td>
+                  <td style="color:#ffd966;font-weight:700;">${data.lager || 0}</td>
+                  <td>${data.stock || 0}</td>
+                  <td><button class="mav-btn mav-refill-btn" data-name="${escapeHtml(name)}" style="width:auto;min-height:36px;padding:4px 12px;font-size:13px;">Fyll på</button></td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    /* ── 4. Erbjudanden ── */
+    function renderMobileAdminOffers() {
+      const offers = loadOffers();
+      return `
+        ${[0, 1].map(i => {
+          const o = offers[i] || {};
+          return `
+            <div class="mav-card">
+              <div style="font-size:14px;color:rgba(255,255,255,.5);margin-bottom:8px;">Erbjudande ${i + 1}</div>
+              <input class="mav-offer-title" data-idx="${i}" placeholder="Titel" value="${escapeHtml(o.title || "")}" style="margin-bottom:8px;" />
+              <input class="mav-offer-desc" data-idx="${i}" placeholder="Beskrivning" value="${escapeHtml(o.desc || "")}" style="margin-bottom:8px;" />
+              <input class="mav-offer-price" data-idx="${i}" placeholder="Pris (t.ex. 40 kr)" value="${escapeHtml(o.price || "")}" />
+            </div>
+          `;
+        }).join("")}
+        <button class="mav-btn" id="mavSaveOffers" style="background:rgba(108,99,255,.15);border-color:rgba(108,99,255,.3);color:#a78bfa;">💾 Spara erbjudanden</button>
+      `;
+    }
+
+    /* ── 5. Önskningar ── */
+    function renderMobileAdminWishes() {
+      const wishes = loadWishes();
+      if (!wishes.length) return `<div style="color:rgba(255,255,255,.4);text-align:center;padding:20px;">Inga önskningar inkomna.</div>`;
+      return `
+        ${wishes.slice().reverse().map(w => `
+          <div class="mav-card">
+            <div style="font-size:13px;color:rgba(255,255,255,.4);">${new Date(w.time).toLocaleString("sv-SE")}</div>
+            <div style="color:#ffd966;font-style:italic;margin-top:4px;">${escapeHtml(w.category)}</div>
+            <div style="font-size:18px;margin-top:4px;">${escapeHtml(w.text)}</div>
+          </div>
+        `).join("")}
+        <button class="mav-btn" id="mavClearWishes" style="margin-top:12px;color:#f87171;border-color:rgba(248,113,113,.3);">🗑 Rensa alla önskningar</button>
+      `;
+    }
+
+    /* ── 6. Kvitton ── */
+    function renderMobileAdminReceipts() {
+      const receipts = loadReceipts().slice().reverse();
+      const allTags = loadTags();
+      if (!receipts.length) return `<div style="color:rgba(255,255,255,.4);text-align:center;padding:20px;">Inga kvitton registrerade.</div>`;
+
+      let metaText = `${receipts.length} kvitton totalt.`;
+      allTags.forEach(tag => {
+        const tagged = receipts.filter(r => r.tagType === tag.id);
+        if (tagged.length) metaText += ` ${tag.label}: ${tagged.length} st.`;
+      });
+
+      return `
+        <div style="font-size:13px;color:rgba(255,255,255,.4);margin-bottom:12px;">${metaText}</div>
+        ${receipts.map(r => {
+          const tagDef = r.tagType ? getTagDef(r.tagType) : null;
+          const borderStyle = tagDef ? `border-color:${tagDef.border};opacity:.7;` : "";
+          return `
+            <div class="mav-card" style="${borderStyle}">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-size:20px;font-weight:700;color:#ffd966;">#${escapeHtml(r.id)}</span>
+                ${tagDef ? `<span style="font-size:11px;background:${tagDef.bg};color:${tagDef.color};padding:2px 8px;border-radius:6px;">${tagDef.emoji} ${escapeHtml(tagDef.label)}</span>` : ""}
+              </div>
+              <div style="font-size:12px;color:rgba(255,255,255,.4);margin-bottom:6px;">${new Date(r.time).toLocaleString("sv-SE")}</div>
+              ${r.items.map(i => `
+                <div style="display:flex;justify-content:space-between;padding:2px 0;font-size:14px;">
+                  <span>${escapeHtml(i.qty)} × ${escapeHtml(i.name)}</span>
+                  <span>${escapeHtml(i.sum)} kr</span>
+                </div>
+              `).join("")}
+              <div style="text-align:right;font-weight:700;font-size:18px;margin-top:6px;${r.tagType ? 'text-decoration:line-through;opacity:.5;' : ''}">
+                ${escapeHtml(r.total)} kr
+              </div>
+              <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+                ${allTags.map(tag => `
+                  <button class="mav-tag-btn" data-receipt="${escapeHtml(r.id)}" data-tag="${escapeHtml(tag.id)}"
+                    style="font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:Georgia,serif;
+                    ${r.tagType === tag.id
+                      ? `background:${tag.bg};color:${tag.color};border:1px solid ${tag.border};`
+                      : `background:rgba(255,255,255,.06);color:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.1);`
+                    }">
+                    ${r.tagType === tag.id ? "✓ " : ""}${escapeHtml(tag.label)}
+                  </button>
+                `).join("")}
+              </div>
+            </div>
+          `;
+        }).join("")}
+      `;
+    }
+
+    /* ── 7. Inställningar ── */
+    function renderMobileAdminSettings() {
+      const s = loadSwishSettings();
+      const swishNum = s.swishNumber || SWISH_NUMBER;
+      const notes = s.notes || "";
+      return `
+        <div class="mav-card">
+          <div style="font-size:14px;color:rgba(255,255,255,.5);margin-bottom:8px;">SWISH-NUMMER</div>
+          <input id="mavSwishNum" value="${escapeHtml(swishNum)}" style="margin-bottom:8px;" />
+          <div style="font-size:14px;color:rgba(255,255,255,.5);margin-bottom:8px;">ANTECKNING</div>
+          <textarea id="mavSwishNotes" rows="2" style="margin-bottom:8px;">${escapeHtml(notes)}</textarea>
+          <button class="mav-btn" id="mavSaveSwish">💾 Spara Swish-inställningar</button>
+          <div id="mavSwishStatus" style="font-size:14px;color:#4ade80;margin-top:6px;min-height:18px;"></div>
+        </div>
+        <div class="mav-card">
+          <div style="font-size:14px;color:rgba(255,255,255,.5);margin-bottom:8px;">LÖSENORD</div>
+          <button class="mav-btn mav-pw-btn" data-pw="admin" style="margin-bottom:8px;">🔑 Byt adminlösenord</button>
+          <button class="mav-btn mav-pw-btn" data-pw="receipt" style="margin-bottom:8px;">🔑 Byt kvittolösenord</button>
+          <button class="mav-btn mav-pw-btn" data-pw="mobileAdmin">🔑 Byt mobiladmin-lösenord</button>
+        </div>
+      `;
+    }
+
+    /* ── Event listeners for mobile admin sections ── */
+    function attachMobileAdminEvents(section) {
+      switch (section) {
+        case "report":
+          document.querySelectorAll(".mav-mode-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+              state.currentReportMode = btn.dataset.mode;
+              openMobileAdminSection("report");
+            });
+          });
+          const clearBtn = document.getElementById("mavClearReport");
+          if (clearBtn) clearBtn.addEventListener("click", async () => {
+            const ok = await showGlobalModal({ title: "Rensa data", subtitle: "Vill du radera all försäljningsdata?", type: "confirm", confirmLabel: "Rensa" });
+            if (ok) { localStorage.removeItem(SALES_STORAGE_KEY); openMobileAdminSection("report"); }
+          });
+          break;
+
+        case "inventory":
+          document.querySelectorAll(".mav-refill-btn").forEach(btn => {
+            btn.addEventListener("click", async () => {
+              const name = btn.dataset.name;
+              const val = await showGlobalModal({ title: `Fyll på ${name}`, subtitle: "Hur många?", type: "number", confirmLabel: "Fyll på" });
+              if (val && Number(val) > 0) {
+                const inv = loadInventory();
+                if (inv[name]) { inv[name].lager += Number(val); inv[name].stock += Number(val); }
+                saveInventory(inv);
+                openMobileAdminSection("inventory");
+              }
+            });
+          });
+          break;
+
+        case "offers":
+          const saveBtn = document.getElementById("mavSaveOffers");
+          if (saveBtn) saveBtn.addEventListener("click", () => {
+            const offers = [0, 1].map(i => ({
+              title: (document.querySelector(`.mav-offer-title[data-idx="${i}"]`) || {}).value || "",
+              desc: (document.querySelector(`.mav-offer-desc[data-idx="${i}"]`) || {}).value || "",
+              price: (document.querySelector(`.mav-offer-price[data-idx="${i}"]`) || {}).value || ""
+            }));
+            saveOffers(offers);
+            saveBtn.textContent = "✓ Sparat!";
+            setTimeout(() => { saveBtn.textContent = "💾 Spara erbjudanden"; }, 1500);
+          });
+          break;
+
+        case "wishes":
+          const clearW = document.getElementById("mavClearWishes");
+          if (clearW) clearW.addEventListener("click", async () => {
+            const ok = await showGlobalModal({ title: "Rensa önskningar", subtitle: "Vill du ta bort alla önskningar?", type: "confirm", confirmLabel: "Rensa" });
+            if (ok) { localStorage.removeItem(WISHES_STORAGE_KEY); openMobileAdminSection("wishes"); }
+          });
+          break;
+
+        case "receipts":
+          document.querySelectorAll(".mav-tag-btn").forEach(btn => {
+            btn.addEventListener("click", async () => {
+              const receiptId = btn.dataset.receipt;
+              const tagId = btn.dataset.tag;
+              const receipts = loadReceipts();
+              const r = receipts.find(r => String(r.id) === String(receiptId));
+              if (!r) return;
+              // Kräv lösenord
+              const pw = await showGlobalModal({ title: "Lösenord", subtitle: `Tagga kvitto #${receiptId}`, type: "password", confirmLabel: "OK" });
+              if (pw !== getReceiptDeletePassword()) return;
+              r.tagType = r.tagType === tagId ? null : tagId;
+              localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
+              openMobileAdminSection("receipts");
+            });
+          });
+          break;
+
+        case "settings":
+          const saveSwish = document.getElementById("mavSaveSwish");
+          if (saveSwish) saveSwish.addEventListener("click", () => {
+            const s = loadSwishSettings();
+            s.swishNumber = document.getElementById("mavSwishNum").value.trim();
+            s.notes = document.getElementById("mavSwishNotes").value;
+            localStorage.setItem("zivert-holm-settings-v1", JSON.stringify(s));
+            document.getElementById("mavSwishStatus").textContent = "Sparat!";
+            setTimeout(() => { document.getElementById("mavSwishStatus").textContent = ""; }, 2000);
+          });
+          document.querySelectorAll(".mav-pw-btn").forEach(btn => {
+            btn.addEventListener("click", () => openChangePwModal(btn.dataset.pw));
+          });
+          break;
+      }
     }
 
     function renderMobileOffers() {
@@ -4092,14 +4481,23 @@
 
       const catView = document.getElementById("mobileCategoryView");
       const adminPanel = document.getElementById("mobileAdminPanel");
+      const adminContent = document.getElementById("mobileAdminContent");
 
+      // Om vi är inne i en admin-sektion → tillbaka till admin-hem
+      if (adminContent && adminContent.style.display !== "none") {
+        backToMobileAdminHome();
+        history.pushState(null, "", window.location.href);
+        return;
+      }
+      // Om admin-panelen (grid) visas → tillbaka till kiosk
       if (adminPanel && adminPanel.style.display !== "none") {
         document.getElementById("mobileAdminLogoutBtn").click();
         history.pushState(null, "", window.location.href);
         return;
       }
       if (catView && catView.style.display !== "none") {
-        document.getElementById("mobileBackBtn").click();
+        const backBtn = document.getElementById("mobileBackBtn");
+        if (backBtn) backBtn.click();
         history.pushState(null, "", window.location.href);
         return;
       }
