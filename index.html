@@ -1779,7 +1779,7 @@
         title: "Dryck",
         subtitle: "Dryck, energi & kaffe",
         items: [
-          { id: "coca-cola-zero", name: "Coca-Cola Zero", price: 15 },
+          { id: "coca-cola-zero", name: "Coca-Cola Zero", price: 15, note: "Välj smak vid kylen" },
           { id: "pepsi-max", name: "Pepsi Max", price: 15, note: "Välj smak vid kylen" },
           { id: "fanta-orange", name: "Fanta Orange", price: 15 },
           { id: "trocadero", name: "Trocadero", price: 15 },
@@ -2424,20 +2424,52 @@
       }
       return lines.join("\n").trim();
     }
+    function getReceiptTagSummary(mode) {
+      const receipts = loadReceipts();
+      const now = new Date();
+      const startToday = getStartOfToday();
+      const startWeek = getStartOfWeek(now);
+      const sevenDaysAgo = new Date(startToday);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+
+      const filtered = receipts.filter(r => {
+        const d = new Date(r.time);
+        if (Number.isNaN(d.getTime())) return false;
+        if (mode === "7days")    return d >= sevenDaysAgo;
+        if (mode === "thisWeek") return d >= startWeek;
+        return true;
+      });
+
+      const test = filtered.filter(r => r.tagged === "test" || r.tagged === true);
+      const eget = filtered.filter(r => r.tagged === "eget_bruk");
+      return {
+        testCount: test.length,
+        testTotal: test.reduce((s, r) => s + Number(r.total), 0),
+        testItems: test.flatMap(r => r.items || []),
+        egetCount: eget.length,
+        egetTotal: eget.reduce((s, r) => s + Number(r.total), 0),
+        egetItems: eget.flatMap(r => r.items || [])
+      };
+    }
+
     function renderReport(mode) {
       state.currentReportMode = mode;
       const sales = getFilteredSales(mode);
       const agg = aggregateSalesByProduct(sales);
       const title = getModeTitle(mode);
+      const tags = getReceiptTagSummary(mode);
+
       if (reportPanelTitle) reportPanelTitle.textContent = title;
       reportSalesCount.textContent = agg.totalTransactions;
       reportItemsCount.textContent = agg.totalItems;
       reportTotalValue.textContent = formatKr(agg.totalValue);
       reportMetaText.textContent = buildMetaText(mode, agg.totalTransactions);
+
+      let html = "";
       if (!agg.categories.length) {
-        reportOutput.innerHTML = `<div class="report-empty">Ingen försäljning registrerad i valt urval ännu.</div>`;
+        html += `<div class="report-empty">Ingen försäljning registrerad i valt urval ännu.</div>`;
       } else {
-        reportOutput.innerHTML = agg.categories.map(cat => `
+        html += agg.categories.map(cat => `
           <div class="report-group">
             <h4>${escapeHtml(cat.categoryTitle)}</h4>
             ${cat.products.map(p => `
@@ -2449,6 +2481,49 @@
           </div>
         `).join("");
       }
+
+      // Tag deduction boxes
+      if (tags.testCount > 0) {
+        const grouped = {};
+        tags.testItems.forEach(i => {
+          const k = i.name;
+          if (!grouped[k]) grouped[k] = 0;
+          grouped[k] += Number(i.qty || 0);
+        });
+        html += `
+          <div class="report-group" style="border:1px solid rgba(255,180,0,.3);background:rgba(255,180,0,.04);margin-top:12px;">
+            <h4 style="color:#ffd966;">🧪 TEST-kvitton (−${tags.testTotal} kr)</h4>
+            <div style="font-size:14px;color:rgba(255,255,255,.45);margin-bottom:8px;">${tags.testCount} kvitton taggade som test — dessa bör ej räknas i försäljningen.</div>
+            ${Object.entries(grouped).map(([name, qty]) => `
+              <div class="report-row">
+                <span>${escapeHtml(name)}</span>
+                <strong>−${escapeHtml(qty)} st</strong>
+              </div>
+            `).join("")}
+          </div>`;
+      }
+
+      if (tags.egetCount > 0) {
+        const grouped = {};
+        tags.egetItems.forEach(i => {
+          const k = i.name;
+          if (!grouped[k]) grouped[k] = 0;
+          grouped[k] += Number(i.qty || 0);
+        });
+        html += `
+          <div class="report-group" style="border:1px solid rgba(108,99,255,.3);background:rgba(108,99,255,.04);margin-top:12px;">
+            <h4 style="color:#a78bfa;">🏠 Eget bruk (−${tags.egetTotal} kr)</h4>
+            <div style="font-size:14px;color:rgba(255,255,255,.45);margin-bottom:8px;">${tags.egetCount} kvitton taggade som eget bruk — varor tagna för eget bruk.</div>
+            ${Object.entries(grouped).map(([name, qty]) => `
+              <div class="report-row">
+                <span>${escapeHtml(name)}</span>
+                <strong>−${escapeHtml(qty)} st</strong>
+              </div>
+            `).join("")}
+          </div>`;
+      }
+
+      reportOutput.innerHTML = html;
       state.lastRenderedReportText = buildReportText(title, agg);
     }
     async function copyReportToClipboard() {
@@ -2903,37 +2978,62 @@
     });
 
     /* ── Receipts admin ── */
+    function getTagLabel(tagged) {
+      if (tagged === "test" || tagged === true) return "TEST";
+      if (tagged === "eget_bruk") return "EGET BRUK";
+      return "";
+    }
+    function getTagStyle(tagged) {
+      if (tagged === "test" || tagged === true) return "opacity:.55;border:1px solid rgba(255,180,0,.3);";
+      if (tagged === "eget_bruk") return "opacity:.55;border:1px solid rgba(108,99,255,.4);";
+      return "";
+    }
+    function getTagBadge(tagged) {
+      if (tagged === "test" || tagged === true) return '<span style="font-size:12px;background:rgba(255,180,0,.2);color:#ffd966;padding:3px 10px;border-radius:6px;letter-spacing:1px;">TEST</span>';
+      if (tagged === "eget_bruk") return '<span style="font-size:12px;background:rgba(108,99,255,.2);color:#a78bfa;padding:3px 10px;border-radius:6px;letter-spacing:1px;">EGET BRUK</span>';
+      return "";
+    }
+    function isTagged(r) { return r.tagged === true || r.tagged === "test" || r.tagged === "eget_bruk"; }
+
     function renderReceiptsAdmin() {
       const receipts = loadReceipts().slice().reverse();
       const meta = document.getElementById("receiptsMetaText");
       const list = document.getElementById("receiptsList");
 
-      const taggedTotal = receipts
-        .filter(r => r.tagged)
-        .reduce((s, r) => s + Number(r.total), 0);
+      const testReceipts = receipts.filter(r => r.tagged === true || r.tagged === "test");
+      const egetReceipts = receipts.filter(r => r.tagged === "eget_bruk");
+      const testTotal = testReceipts.reduce((s, r) => s + Number(r.total), 0);
+      const egetTotal = egetReceipts.reduce((s, r) => s + Number(r.total), 0);
 
-      meta.textContent = `Totalt ${receipts.length} kvitton registrerade.${taggedTotal > 0 ? ` Varav ${receipts.filter(r=>r.tagged).length} taggade som TEST (−${taggedTotal} kr).` : ""}`;
+      let metaText = `Totalt ${receipts.length} kvitton registrerade.`;
+      if (testTotal > 0) metaText += ` TEST: ${testReceipts.length} st (−${testTotal} kr).`;
+      if (egetTotal > 0) metaText += ` EGET BRUK: ${egetReceipts.length} st (−${egetTotal} kr).`;
+      meta.textContent = metaText;
 
       if (!receipts.length) {
         list.innerHTML = '<div class="report-empty">Inga kvitton registrerade ännu.</div>';
         return;
       }
 
-      list.innerHTML = receipts.map(r => `
-        <div class="report-group" style="margin-bottom:10px;${r.tagged ? 'opacity:.55;border:1px solid rgba(255,180,0,.3);' : ''}">
+      list.innerHTML = receipts.map(r => {
+        const tagged = isTagged(r);
+        return `
+        <div class="report-group" style="margin-bottom:10px;${getTagStyle(r.tagged)}">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
             <div style="display:flex;align-items:center;gap:10px;">
               <span style="font-size:24px;font-weight:700;color:#ffd966;">#${escapeHtml(r.id)}</span>
-              ${r.tagged ? '<span style="font-size:12px;background:rgba(255,180,0,.2);color:#ffd966;padding:3px 10px;border-radius:6px;letter-spacing:1px;">TEST</span>' : ''}
+              ${getTagBadge(r.tagged)}
             </div>
-            <div style="display:flex;align-items:center;gap:10px;">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
               <span style="font-size:14px;color:rgba(255,255,255,.45);">${new Date(r.time).toLocaleString("sv-SE")}</span>
-              <button
-                class="catalog-small-btn"
-                type="button"
-                data-receipt-tag="${escapeHtml(r.id)}"
-                style="font-size:13px;padding:4px 12px;"
-              >${r.tagged ? "Avmarkera TEST" : "Tagga som TEST"}</button>
+              <button class="catalog-small-btn" type="button"
+                data-receipt-tag="${escapeHtml(r.id)}" data-tag-type="test"
+                style="font-size:12px;padding:3px 10px;">
+                ${(r.tagged === "test" || r.tagged === true) ? "✕ TEST" : "TEST"}</button>
+              <button class="catalog-small-btn" type="button"
+                data-receipt-tag="${escapeHtml(r.id)}" data-tag-type="eget_bruk"
+                style="font-size:12px;padding:3px 10px;">
+                ${r.tagged === "eget_bruk" ? "✕ EGET" : "EGET BRUK"}</button>
             </div>
           </div>
           ${r.items.map(i => `
@@ -2942,23 +3042,27 @@
               <span>${escapeHtml(i.sum)} kr</span>
             </div>
           `).join("")}
-          <div style="margin-top:8px;font-size:22px;font-weight:700;color:#fff;text-align:right;">${r.tagged ? '<span style="text-decoration:line-through;opacity:.5;">'+escapeHtml(r.total)+' kr</span>' : escapeHtml(r.total)+' kr'}</div>
-        </div>
-      `).join("");
+          <div style="margin-top:8px;font-size:22px;font-weight:700;color:#fff;text-align:right;">${tagged ? '<span style="text-decoration:line-through;opacity:.5;">'+escapeHtml(r.total)+' kr</span>' : escapeHtml(r.total)+' kr'}</div>
+        </div>`;
+      }).join("");
     }
 
     /* ── Receipt tag password modal ── */
     let pendingReceiptTagId = null;
+    let pendingTagType = null;
     const receiptTagOverlay = document.getElementById("receiptTagOverlay");
     const receiptTagPasswordInput = document.getElementById("receiptTagPasswordInput");
     const receiptTagError = document.getElementById("receiptTagError");
     const receiptTagCancelBtn = document.getElementById("receiptTagCancelBtn");
     const receiptTagConfirmBtn = document.getElementById("receiptTagConfirmBtn");
 
-    function openReceiptTagModal(receiptId) {
+    function openReceiptTagModal(receiptId, tagType) {
       pendingReceiptTagId = receiptId;
+      pendingTagType = tagType;
       receiptTagPasswordInput.value = "";
       receiptTagError.textContent = "";
+      const label = tagType === "eget_bruk" ? "EGET BRUK" : "TEST";
+      document.getElementById("receiptTagTitle").textContent = `Tagga som ${label}`;
       receiptTagOverlay.classList.add("active");
       receiptTagOverlay.setAttribute("aria-hidden", "false");
       setTimeout(() => receiptTagPasswordInput.focus(), 30);
@@ -2969,6 +3073,7 @@
       receiptTagError.textContent = "";
       receiptTagPasswordInput.value = "";
       pendingReceiptTagId = null;
+      pendingTagType = null;
     }
     function tryReceiptTag() {
       if (receiptTagPasswordInput.value !== getReceiptDeletePassword()) {
@@ -2979,7 +3084,12 @@
       const receipts = loadReceipts();
       const receipt = receipts.find(r => r.id === pendingReceiptTagId);
       if (!receipt) { closeReceiptTagModal(); return; }
-      receipt.tagged = !receipt.tagged;
+      // Toggle: if already this tag, remove it. Otherwise set it.
+      if (receipt.tagged === pendingTagType || (pendingTagType === "test" && receipt.tagged === true)) {
+        receipt.tagged = false;
+      } else {
+        receipt.tagged = pendingTagType;
+      }
       localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
       closeReceiptTagModal();
       renderReceiptsAdmin();
@@ -2998,7 +3108,7 @@
     document.getElementById("receiptsList").addEventListener("click", (e) => {
       const btn = e.target.closest("[data-receipt-tag]");
       if (!btn) return;
-      openReceiptTagModal(btn.dataset.receiptTag);
+      openReceiptTagModal(btn.dataset.receiptTag, btn.dataset.tagType);
     });
 
     /* ── Inventory & Stock editor ── */
@@ -3182,20 +3292,30 @@
       }, 2000);
     });
 
-    /* ── Pre-populate Inventory & Stock if empty ── */
+    /* ── Pre-populate Inventory & Stock ── */
     function initInventoryAndStock() {
       const allNames = [];
       categories.forEach(cat => cat.items.forEach(item => allNames.push(item.name)));
+      const nameSet = new Set(allNames);
+
+      // Check if existing keys match product names — if not, reset
+      function needsReset(data) {
+        const keys = Object.keys(data);
+        if (!keys.length) return true;
+        // If none of the keys match any product name, it's old ID-based data
+        const matchCount = keys.filter(k => nameSet.has(k)).length;
+        return matchCount === 0;
+      }
 
       const inv = loadInventory();
-      if (!Object.keys(inv).length) {
+      if (needsReset(inv)) {
         const newInv = {};
         allNames.forEach(name => { newInv[name] = 0; });
         saveInventory(newInv);
       }
 
       const stock = loadStock();
-      if (!Object.keys(stock).length) {
+      if (needsReset(stock)) {
         const newStock = {};
         allNames.forEach(name => { newStock[name] = 0; });
         saveStock(newStock);
