@@ -1458,12 +1458,8 @@
   <!-- MOBILE APP (utanför viewport/stage) -->
   <div id="mobileApp" style="display:none;width:100%;min-height:100vh;background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);font-family:Georgia,serif;color:#fff;">
 
-    <!-- MOBIL HEADER -->
-    <div style="background:rgba(0,0,0,.5);backdrop-filter:blur(10px);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;border-bottom:1px solid rgba(255,255,255,.08);">
-      <div id="mobileLogoTrigger" style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#f5a623,#c87800);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;cursor:pointer;user-select:none;font-family:Georgia,serif;flex-shrink:0;">ZH</div>
-      <div style="font-size:13px;color:rgba(255,255,255,.5);letter-spacing:1px;">ZIVERT HOLMS HÖRNA</div>
-      <div style="width:40px;"></div>
-    </div>
+    <!-- Osynlig admin-trigger (5 klick = öppna admin) -->
+    <div id="mobileLogoTrigger" style="position:fixed;top:60px;right:0;width:80px;height:80px;z-index:9999;opacity:0;cursor:default;"></div>
 
     <!-- MOBIL STARTSIDA -->
     <div id="mobileOverview" style="padding:20px;">
@@ -3229,7 +3225,6 @@
         document.querySelector(".viewport").style.display = "none";
         document.getElementById("mobileApp").style.display = "block";
         document.getElementById("mobileAdminPanel").style.display = "block";
-        document.querySelector("#mobileApp > div:first-child").style.display = "none";
         document.getElementById("mobileOverview").style.display = "none";
         document.body.style.overflow = "auto";
         document.body.style.background = "linear-gradient(135deg,#0f0c29,#302b63,#24243e)";
@@ -3935,7 +3930,6 @@
 
       // Mobile back button
       document.getElementById("mobileBackBtn").addEventListener("click", () => {
-        document.querySelector("#mobileApp > div:first-child").style.display = "flex";
         document.getElementById("mobileCategoryView").style.display = "none";
         document.getElementById("mobileOverview").style.display = "block";
         window.scrollTo(0, 0);
@@ -3946,7 +3940,6 @@
         document.getElementById("mobileAdminPanel").style.display = "none";
         document.querySelector(".viewport").style.display = "none";
         document.getElementById("mobileApp").style.display = "block";
-        document.querySelector("#mobileApp > div:first-child").style.display = "flex";
         document.getElementById("mobileOverview").style.display = "block";
         document.body.style.overflow = "auto";
         document.body.style.background = "linear-gradient(135deg,#0f0c29,#302b63,#24243e)";
@@ -4034,7 +4027,6 @@
 
       const emoji = CATEGORY_EMOJI[catKey] || "🛍";
       document.getElementById("mobileCatTitle").textContent = emoji + " " + (cat.title || catKey);
-      document.querySelector("#mobileApp > div:first-child").style.display = "none";
       document.getElementById("mobileOverview").style.display = "none";
       document.getElementById("mobileCategoryView").style.display = "block";
       window.scrollTo(0, 0);
