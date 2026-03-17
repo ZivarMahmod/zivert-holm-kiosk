@@ -257,26 +257,26 @@
       letter-spacing: 1.5px;
       text-transform: uppercase;
       border-radius: 8px;
-      padding: 6px 12px;
+      padding: 4px 12px;
       white-space: nowrap;
       flex-shrink: 0;
     }
     .offer-info { min-width: 0; }
     .offer-title {
-      font-size: 28px;
+      font-size: 32px;
       font-style: italic;
       color: #2c3e35;
       margin: 0 0 4px;
       line-height: 1.1;
     }
     .offer-desc {
-      font-size: 18px;
+      font-size: 20px;
       color: #6b7c74;
       margin: 0;
       line-height: 1.3;
     }
     .offer-price {
-      font-size: 22px;
+      font-size: 24px;
       font-weight: 700;
       color: #c47a3a;
       margin-top: 6px;
@@ -309,7 +309,7 @@
     /* Erbjudande-pil-bubbla */
     .erbjudande-pil-wrapper {
       position: absolute;
-      top: calc(100% + 8px);
+      top: calc(100% + 16px);
       left: 50%;
       transform: translateX(-50%);
       z-index: 10;
@@ -319,13 +319,14 @@
       background: linear-gradient(135deg, #72383D, #8B4449);
       color: #EFE9E1;
       border-radius: 16px;
-      padding: 12px 18px;
+      padding: 12px 24px;
       font-family: Georgia, serif;
       text-align: center;
       box-shadow: 0 4px 15px rgba(114,56,61,0.4);
       animation: pilHopp 1.8s ease-in-out infinite;
       position: relative;
-      max-width: 180px;
+      max-width: 220px;
+      width: max-content;
     }
     .erbjudande-pil-bubbla::before {
       content: '';
