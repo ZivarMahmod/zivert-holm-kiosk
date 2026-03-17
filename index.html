@@ -2000,6 +2000,7 @@
                       <div class="catalog-actions-row">
                         <button class="admin-btn" id="addCategoryBtn" type="button">Lägg till kategori</button>
                         <button class="admin-btn secondary" id="saveCatalogBtn" type="button">Spara ändringar</button>
+                        <button class="admin-btn danger" id="discardCatalogBtn" type="button" style="display:none;">↩ Återgå</button>
                       </div>
                       <p class="catalog-status" id="catalogSaveStatus">Redigera namn och pris, lägg till eller ta bort produkter och kategorier.</p>
                       <div class="catalog-editor" id="catalogEditor"></div>
@@ -2119,9 +2120,11 @@
 
                       <button class="catalog-small-btn" id="addInventoryRowBtn" type="button" style="margin-top:10px;">+ Lägg till produkt</button>
 
-                      <div class="save-bar" style="display:flex;align-items:center;gap:12px;margin-top:16px;">
+                      <div class="save-bar" style="display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap;">
                         <span id="inventorySaveStatus" style="font-size:16px;color:#6b7c74;">Spara för att uppdatera.</span>
                         <button class="admin-btn" id="saveInventoryBtn" type="button">Spara lager</button>
+                        <button class="admin-btn danger" id="discardInventoryBtn" type="button" style="display:none;">↩ Återgå</button>
+                        <button class="admin-btn secondary" id="syncInventoryBtn" type="button">🔄 Synka med katalog</button>
                       </div>
                     </div>
 
@@ -3902,6 +3905,8 @@
       renderCatalogEditor();
       renderReport(state.currentReportMode);
       setCatalogStatus(msg ? `⚠ Ospararat: ${msg}` : "⚠ Du har osparade ändringar — klicka Spara ändringar.");
+      const db = document.getElementById("discardCatalogBtn");
+      if (db) db.style.display = "inline-block";
     }
 
     /* Sparar till localStorage — anropas bara av explicit Spara-knapp */
@@ -3915,6 +3920,21 @@
       renderCatalogEditor();
       renderReport(state.currentReportMode);
       setCatalogStatus(msg);
+      const db = document.getElementById("discardCatalogBtn");
+      if (db) db.style.display = "none";
+    }
+
+    function discardCatalogChanges() {
+      categories = loadCatalog();
+      _catalogUnsaved = false;
+      cleanupQtyState();
+      renderOverview();
+      renderCurrentCategory();
+      renderSummary();
+      renderCatalogEditor();
+      setCatalogStatus("Ändringar återställda.");
+      const db = document.getElementById("discardCatalogBtn");
+      if (db) db.style.display = "none";
     }
 
     function saveCatalogChanges() {
@@ -4471,8 +4491,36 @@
     copyReportBtn.addEventListener("click",      () => copyReportToClipboard());
     clearReportDataBtn.addEventListener("click", () => clearReportData());
     saveCatalogBtn.addEventListener("click",     () => saveCatalogChanges());
+    document.getElementById("discardCatalogBtn").addEventListener("click", () => discardCatalogChanges());
     addCategoryBtn.addEventListener("click",     () => addCategory());
     saveOffersBtn.addEventListener("click",      () => saveOffersFromEditor());
+
+    document.getElementById("discardInventoryBtn").addEventListener("click", () => {
+      renderInventoryEditor();
+      document.getElementById("inventorySaveStatus").textContent = "Ändringar återställda.";
+      setTimeout(() => { document.getElementById("inventorySaveStatus").textContent = "Spara för att uppdatera."; }, 2000);
+    });
+
+    document.getElementById("syncInventoryBtn").addEventListener("click", async () => {
+      const ok = await showGlobalModal({
+        title: "Synka lager med katalog",
+        subtitle: "Tar bort rader som inte matchar nuvarande produkter och lägger till saknade. Lagersiffror bevaras.",
+        type: "confirm",
+        confirmLabel: "Synka"
+      });
+      if (!ok) return;
+      const inv = loadInventory();
+      const allNames = new Set();
+      categories.forEach(c => c.items.forEach(it => allNames.add(it.name)));
+      // Remove entries not in catalog
+      Object.keys(inv).forEach(k => { if (!allNames.has(k)) delete inv[k]; });
+      // Add missing catalog items
+      allNames.forEach(name => { if (!inv[name]) inv[name] = { lager: 0, stock: 0 }; });
+      saveInventory(inv);
+      renderInventoryEditor();
+      document.getElementById("inventorySaveStatus").textContent = "Lager synkat med katalog! ✅";
+      setTimeout(() => { document.getElementById("inventorySaveStatus").textContent = "Spara för att uppdatera."; }, 2500);
+    });
     catalogEditor.addEventListener("click", e => {
       const btn = e.target.closest("[data-catalog-action]");
       if (!btn) return;
@@ -5087,10 +5135,10 @@
 
         return `
           <div class="catalog-item-row" style="margin-bottom:6px;display:grid;grid-template-columns:1fr 90px 90px 100px 80px 40px;gap:8px;align-items:center;">
-            <select class="catalog-input inv-name-select" data-inv-key="${escapeHtml(name)}" style="padding:8px;border-radius:8px;background:#f8faf9;color:#2c3e35;border:1px solid rgba(0,0,0,.1);font-size:14px;">
+            <select class="catalog-input inv-name-select" data-inv-key="${escapeHtml(name)}" data-saved-name="${escapeHtml(name)}" style="padding:8px;border-radius:8px;background:#f8faf9;color:#2c3e35;border:1px solid rgba(0,0,0,.1);font-size:14px;">
               ${options}
             </select>
-            <input class="catalog-price-input inv-lager-input" type="number" min="0" step="1" value="${lager}" style="text-align:center;" title="Lager" />
+            <input class="catalog-price-input inv-lager-input" type="number" min="0" step="1" value="${lager}" data-saved-lager="${lager}" style="text-align:center;" title="Lager" />
             <div style="text-align:center;font-size:16px;font-weight:700;color:${low ? '#f87171' : '#5b8fa8'};" title="Stock">
               ${stock}${low ? ' ⚠' : ''}
             </div>
@@ -5100,6 +5148,47 @@
           </div>
         `;
       }).join("");
+
+      // Fail-safe: revert unsaved changes on blur, UNLESS user clicked Save
+      let _invSavePending = false;
+      const setInvDirty = (dirty) => {
+        const db = document.getElementById("discardInventoryBtn");
+        if (db) db.style.display = dirty ? "inline-block" : "none";
+      };
+      const saveInvBtn = document.getElementById("saveInventoryBtn");
+      if (saveInvBtn) {
+        saveInvBtn.addEventListener("mousedown", () => { _invSavePending = true; }, { capture: true });
+        saveInvBtn.addEventListener("mouseup", () => { setTimeout(() => { _invSavePending = false; }, 200); }, { capture: true });
+      }
+
+      editor.querySelectorAll(".inv-name-select").forEach(select => {
+        select.addEventListener("change", () => {
+          const changed = select.value !== select.dataset.savedName;
+          select.style.background = changed ? "rgba(251,191,36,.12)" : "#f8faf9";
+          select.style.borderColor = changed ? "rgba(251,191,36,.5)" : "rgba(0,0,0,.1)";
+          if (changed) setInvDirty(true);
+        });
+        select.addEventListener("blur", () => {
+          if (_invSavePending) return;
+          select.value = select.dataset.savedName;
+          select.style.background = "#f8faf9";
+          select.style.borderColor = "rgba(0,0,0,.1)";
+        });
+      });
+      editor.querySelectorAll(".inv-lager-input").forEach(input => {
+        input.addEventListener("input", () => {
+          const changed = String(input.value) !== String(input.dataset.savedLager);
+          input.style.background = changed ? "rgba(251,191,36,.12)" : "";
+          input.style.borderColor = changed ? "rgba(251,191,36,.5)" : "";
+          if (changed) setInvDirty(true);
+        });
+        input.addEventListener("blur", () => {
+          if (_invSavePending) return;
+          input.value = input.dataset.savedLager;
+          input.style.background = "";
+          input.style.borderColor = "";
+        });
+      });
 
       // Refill button: move from lager to stock
       editor.querySelectorAll(".inv-refill-btn").forEach(btn => {
