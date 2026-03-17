@@ -1871,62 +1871,8 @@
                     <!-- Erbjudanden -->
                     <div class="admin-section" id="adminSectionOffers">
                       <h3 class="admin-section-title">Erbjudanden</h3>
-                      <div class="offers-edit-grid">
-                        <div class="offer-edit-card">
-                          <h4>Erbjudande 1</h4>
-                          <div>
-                            <label class="admin-input-label">ETIKETT (valfri egen text)</label>
-                            <input class="admin-input" type="text" id="offer1CustomType" placeholder="T.ex. DAGENS TIPS" maxlength="20" />
-                          </div>
-                          <div>
-                            <span class="admin-input-label">Typ</span>
-                            <div class="offer-type-pills" id="offer1TypePills">
-                              <span class="offer-type-pill active" data-offer="1" data-type="VECKANS DEAL">VECKANS DEAL</span>
-                              <span class="offer-type-pill" data-offer="1" data-type="KOMMER SNART">KOMMER SNART</span>
-                              <span class="offer-type-pill" data-offer="1" data-type="NYHET">NYHET</span>
-                            </div>
-                          </div>
-                          <div>
-                            <label class="admin-input-label">Titel</label>
-                            <input class="admin-input" type="text" id="offer1Title" placeholder="t.ex. Nocco + Proteinbar" />
-                          </div>
-                          <div>
-                            <label class="admin-input-label">Beskrivning</label>
-                            <input class="admin-input" type="text" id="offer1Desc" placeholder="t.ex. Köp båda för 40 kr" />
-                          </div>
-                          <div>
-                            <label class="admin-input-label">Pris (valfritt)</label>
-                            <input class="admin-input" type="text" id="offer1Price" placeholder="t.ex. 40 kr" />
-                          </div>
-                        </div>
-                        <div class="offer-edit-card">
-                          <h4>Erbjudande 2</h4>
-                          <div>
-                            <label class="admin-input-label">ETIKETT (valfri egen text)</label>
-                            <input class="admin-input" type="text" id="offer2CustomType" placeholder="T.ex. DAGENS TIPS" maxlength="20" />
-                          </div>
-                          <div>
-                            <span class="admin-input-label">Typ</span>
-                            <div class="offer-type-pills" id="offer2TypePills">
-                              <span class="offer-type-pill" data-offer="2" data-type="VECKANS DEAL">VECKANS DEAL</span>
-                              <span class="offer-type-pill active" data-offer="2" data-type="KOMMER SNART">KOMMER SNART</span>
-                              <span class="offer-type-pill" data-offer="2" data-type="NYHET">NYHET</span>
-                            </div>
-                          </div>
-                          <div>
-                            <label class="admin-input-label">Titel</label>
-                            <input class="admin-input" type="text" id="offer2Title" placeholder="t.ex. Celsius Summer Splash" />
-                          </div>
-                          <div>
-                            <label class="admin-input-label">Beskrivning</label>
-                            <input class="admin-input" type="text" id="offer2Desc" placeholder="t.ex. Ny sommarsmak — snart i kylen" />
-                          </div>
-                          <div>
-                            <label class="admin-input-label">Pris (valfritt)</label>
-                            <input class="admin-input" type="text" id="offer2Price" placeholder="t.ex. 25 kr" />
-                          </div>
-                        </div>
-                      </div>
+                      <div id="offersEditorContainer"></div>
+                      <button class="admin-btn" id="addOfferBtn" type="button" style="margin-bottom:10px;">+ Lägg till erbjudande</button>
                       <button class="admin-btn" id="saveOffersBtn" type="button">Spara erbjudanden</button>
                     </div>
 
@@ -2776,7 +2722,7 @@
       try {
         const raw = localStorage.getItem(OFFERS_STORAGE_KEY);
         const parsed = raw ? JSON.parse(raw) : null;
-        return Array.isArray(parsed) && parsed.length === 2 ? parsed : JSON.parse(JSON.stringify(DEFAULT_OFFERS));
+        return Array.isArray(parsed) ? parsed : JSON.parse(JSON.stringify(DEFAULT_OFFERS));
       } catch (e) { return JSON.parse(JSON.stringify(DEFAULT_OFFERS)); }
     }
     function saveOffers(offers) {
@@ -2824,6 +2770,7 @@
     /* ── App state ── */
     const state = {
       qty: {},
+      offerCart: [],
       currentCategory: null,
       qrInstance: null,
       currentReportMode: "7days",
@@ -3058,6 +3005,15 @@
     }
     function getTotals() {
       const cart = getCart();
+      // Add offer items from offerCart
+      state.offerCart.forEach(o => {
+        cart.push({
+          categoryKey: "__erbjudande__", categoryTitle: "Erbjudande",
+          itemId: o.id, name: o.titel,
+          price: o.paketpris, qty: o.antal, sum: o.paketpris * o.antal,
+          ärErbjudande: true
+        });
+      });
       return {
         cart,
         totalItems: cart.reduce((s, it) => s + it.qty, 0),
@@ -3606,44 +3562,160 @@
 
     /* ── Offers editor ── */
     let offerTypes = ["VECKANS DEAL", "KOMMER SNART"];
-    function loadOffersIntoEditor() {
-      const offers = loadOffers();
-      [1, 2].forEach(n => {
-        const offer = offers[n - 1] || {};
-        const titleEl = document.getElementById(`offer${n}Title`);
-        const descEl  = document.getElementById(`offer${n}Desc`);
-        const priceEl = document.getElementById(`offer${n}Price`);
-        const customEl = document.getElementById(`offer${n}CustomType`);
-        if (titleEl) titleEl.value = offer.title || "";
-        if (descEl)  descEl.value  = offer.desc  || "";
-        if (priceEl) priceEl.value = offer.price || "";
-        // Check if type is a standard pill or custom
+    /* ── Offer editor (dynamic) ── */
+    function getAllProducts() {
+      const cats = loadCatalog();
+      const products = [];
+      cats.forEach(cat => {
+        (cat.items || []).forEach(item => {
+          products.push({ id: item.id, name: item.name, price: item.price, catKey: cat.key, catTitle: cat.title });
+        });
+      });
+      return products;
+    }
+
+    function renderOfferEditor(offers) {
+      const container = document.getElementById("offersEditorContainer");
+      if (!container) return;
+      container.innerHTML = "";
+      offers.forEach((offer, idx) => {
+        const card = document.createElement("div");
+        card.className = "offer-edit-card";
+        card.dataset.offerIdx = idx;
+
         const standardTypes = ["VECKANS DEAL", "KOMMER SNART", "NYHET"];
-        const isCustom = offer.type && !standardTypes.includes(offer.type);
-        if (customEl) customEl.value = isCustom ? offer.type : "";
-        const pillsContainer = document.getElementById(`offer${n}TypePills`);
-        if (pillsContainer) {
-          pillsContainer.querySelectorAll(".offer-type-pill").forEach(p => {
-            p.classList.toggle("active", !isCustom && p.dataset.type === offer.type);
-          });
-        }
+        const isCustomType = offer.type && !standardTypes.includes(offer.type);
+
+        card.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <h4>Erbjudande ${idx + 1}</h4>
+            <button type="button" class="offer-remove-btn" style="background:none;border:none;color:#c0392b;font-size:20px;cursor:pointer;" title="Ta bort">&times;</button>
+          </div>
+          <div>
+            <label class="admin-input-label">ETIKETT (valfri egen text)</label>
+            <input class="admin-input offer-custom-type" type="text" placeholder="T.ex. DAGENS TIPS" maxlength="20" value="${escapeHtml(isCustomType ? offer.type : '')}" />
+          </div>
+          <div>
+            <span class="admin-input-label">Typ</span>
+            <div class="offer-type-pills">
+              ${standardTypes.map(t => `<span class="offer-type-pill${!isCustomType && offer.type === t ? ' active' : ''}" data-type="${t}">${t}</span>`).join("")}
+            </div>
+          </div>
+          <div>
+            <label class="admin-input-label">Titel</label>
+            <input class="admin-input offer-title" type="text" placeholder="t.ex. Nocco + Proteinbar" value="${escapeHtml(offer.title || '')}" />
+          </div>
+          <div>
+            <label class="admin-input-label">Beskrivning</label>
+            <input class="admin-input offer-desc" type="text" placeholder="t.ex. Köp båda för 40 kr" value="${escapeHtml(offer.desc || '')}" />
+          </div>
+          <div>
+            <label class="admin-input-label">Paketpris (kr)</label>
+            <input class="admin-input offer-paketpris" type="number" min="0" placeholder="t.ex. 40" value="${offer.paketpris || ''}" />
+          </div>
+          <div>
+            <label class="admin-input-label">Produkter i paketet</label>
+            <div class="offer-produkter-list"></div>
+            <div style="display:flex;gap:8px;margin-top:6px;">
+              <select class="admin-input offer-produkt-select" style="flex:1;"></select>
+              <button type="button" class="catalog-small-btn offer-add-produkt-btn">+ Lägg till</button>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+
+        // Populate product dropdown
+        const select = card.querySelector(".offer-produkt-select");
+        const allProducts = getAllProducts();
+        select.innerHTML = `<option value="">Välj produkt...</option>` +
+          allProducts.map(p => `<option value="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}">${escapeHtml(p.catTitle)} — ${escapeHtml(p.name)} (${p.price} kr)</option>`).join("");
+
+        // Render existing produkter
+        renderOfferProdukter(card, offer.produkter || []);
+
+        // Pill clicks
+        card.querySelector(".offer-type-pills").addEventListener("click", e => {
+          const pill = e.target.closest(".offer-type-pill");
+          if (!pill) return;
+          card.querySelectorAll(".offer-type-pill").forEach(p => p.classList.remove("active"));
+          pill.classList.add("active");
+        });
+
+        // Add produkt button
+        card.querySelector(".offer-add-produkt-btn").addEventListener("click", () => {
+          const sel = card.querySelector(".offer-produkt-select");
+          if (!sel.value) return;
+          const opt = sel.options[sel.selectedIndex];
+          const list = card.querySelector(".offer-produkter-list");
+          const existing = list.querySelectorAll(".offer-produkt-row");
+          // Don't add duplicate
+          for (const row of existing) {
+            if (row.dataset.produktId === sel.value) return;
+          }
+          addOfferProduktRow(list, { produktId: sel.value, namn: opt.dataset.name, antal: 1 });
+          sel.value = "";
+        });
+
+        // Remove offer button
+        card.querySelector(".offer-remove-btn").addEventListener("click", () => {
+          card.remove();
+        });
       });
     }
-    function getActiveOfferType(n) {
-      const pills = document.getElementById(`offer${n}TypePills`);
-      if (!pills) return "VECKANS DEAL";
-      const active = pills.querySelector(".offer-type-pill.active");
-      return active ? active.dataset.type : "VECKANS DEAL";
+
+    function renderOfferProdukter(card, produkter) {
+      const list = card.querySelector(".offer-produkter-list");
+      list.innerHTML = "";
+      (produkter || []).forEach(p => addOfferProduktRow(list, p));
     }
+
+    function addOfferProduktRow(list, p) {
+      const row = document.createElement("div");
+      row.className = "offer-produkt-row";
+      row.dataset.produktId = p.produktId;
+      row.style.cssText = "display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(0,0,0,.06);";
+      row.innerHTML = `
+        <span style="flex:1;">${escapeHtml(p.namn)}</span>
+        <label style="font-size:12px;color:#6b7c74;">Antal:</label>
+        <input type="number" min="1" value="${p.antal || 1}" style="width:50px;padding:4px;border:1px solid rgba(0,0,0,.12);border-radius:6px;text-align:center;" class="offer-produkt-antal" />
+        <button type="button" style="background:none;border:none;color:#c0392b;font-size:16px;cursor:pointer;" class="offer-produkt-remove">&times;</button>
+      `;
+      row.querySelector(".offer-produkt-remove").addEventListener("click", () => row.remove());
+      list.appendChild(row);
+    }
+
+    function loadOffersIntoEditor() {
+      const offers = loadOffers();
+      renderOfferEditor(offers);
+    }
+
     function saveOffersFromEditor() {
-      const offers = [1, 2].map(n => {
-        const customType = (document.getElementById(`offer${n}CustomType`) || {}).value || "";
-        return {
-          type:  customType.trim() || getActiveOfferType(n),
-          title: (document.getElementById(`offer${n}Title`) || {}).value || "",
-          desc:  (document.getElementById(`offer${n}Desc`)  || {}).value || "",
-          price: (document.getElementById(`offer${n}Price`) || {}).value || ""
-        };
+      const container = document.getElementById("offersEditorContainer");
+      const cards = container.querySelectorAll(".offer-edit-card");
+      const offers = [];
+      cards.forEach(card => {
+        const customType = (card.querySelector(".offer-custom-type") || {}).value || "";
+        const activePill = card.querySelector(".offer-type-pill.active");
+        const type = customType.trim() || (activePill ? activePill.dataset.type : "VECKANS DEAL");
+        const title = (card.querySelector(".offer-title") || {}).value || "";
+        const desc = (card.querySelector(".offer-desc") || {}).value || "";
+        const paketpris = parseFloat((card.querySelector(".offer-paketpris") || {}).value) || 0;
+
+        const produkter = [];
+        card.querySelectorAll(".offer-produkt-row").forEach(row => {
+          produkter.push({
+            produktId: row.dataset.produktId,
+            namn: row.querySelector("span").textContent,
+            antal: parseInt(row.querySelector(".offer-produkt-antal").value) || 1
+          });
+        });
+
+        offers.push({
+          type, title, desc,
+          price: paketpris ? paketpris + " kr" : "",
+          paketpris,
+          produkter
+        });
       });
       saveOffers(offers);
       renderOffers();
@@ -3652,15 +3724,42 @@
       setTimeout(() => { btn.textContent = "Spara erbjudanden"; }, 1400);
     }
 
-    /* offer pill clicks */
-    document.querySelectorAll(".offer-type-pills").forEach(container => {
-      container.addEventListener("click", e => {
-        const pill = e.target.closest(".offer-type-pill");
-        if (!pill) return;
-        container.querySelectorAll(".offer-type-pill").forEach(p => p.classList.remove("active"));
-        pill.classList.add("active");
-      });
+    // Add offer button
+    document.getElementById("addOfferBtn").addEventListener("click", () => {
+      const container = document.getElementById("offersEditorContainer");
+      const currentCount = container.querySelectorAll(".offer-edit-card").length;
+      // Temporarily collect current state, add blank, re-render
+      const currentOffers = collectOffersFromEditor();
+      currentOffers.push({ type: "VECKANS DEAL", title: "", desc: "", paketpris: 0, produkter: [] });
+      renderOfferEditor(currentOffers);
     });
+
+    function collectOffersFromEditor() {
+      const container = document.getElementById("offersEditorContainer");
+      const cards = container.querySelectorAll(".offer-edit-card");
+      const offers = [];
+      cards.forEach(card => {
+        const customType = (card.querySelector(".offer-custom-type") || {}).value || "";
+        const activePill = card.querySelector(".offer-type-pill.active");
+        const type = customType.trim() || (activePill ? activePill.dataset.type : "VECKANS DEAL");
+        const produkter = [];
+        card.querySelectorAll(".offer-produkt-row").forEach(row => {
+          produkter.push({
+            produktId: row.dataset.produktId,
+            namn: row.querySelector("span").textContent,
+            antal: parseInt(row.querySelector(".offer-produkt-antal").value) || 1
+          });
+        });
+        offers.push({
+          type,
+          title: (card.querySelector(".offer-title") || {}).value || "",
+          desc: (card.querySelector(".offer-desc") || {}).value || "",
+          paketpris: parseFloat((card.querySelector(".offer-paketpris") || {}).value) || 0,
+          produkter
+        });
+      });
+      return offers;
+    }
 
     /* ── Settings editor ── */
     function loadSwishSettings() {
