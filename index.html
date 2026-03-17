@@ -3084,7 +3084,7 @@
         </div>`;
       }).join("");
 
-      // Click handler for välj-knappar
+      // Click handler for välj-knappar ONLY
       offersGrid.querySelectorAll(".erbjudande-välj-knapp").forEach(btn => {
         btn.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -3093,25 +3093,14 @@
           if (offer) läggTillErbjudande(offer);
         });
       });
-      // Click handler for whole card
-      offersGrid.querySelectorAll(".offer-card").forEach(card => {
-        card.addEventListener("click", () => {
-          const idx = parseInt(card.dataset.offerIdx);
-          const offer = offers[idx];
-          if (!offer || !offer.paketpris) return;
-          läggTillErbjudande(offer);
-        });
-      });
 
       // Bubbla renderas nu direkt inuti offer-kortet ovan
     }
 
     function läggTillErbjudande(offer) {
-      // Remove any existing instance of this offer
-      state.offerCart = state.offerCart.filter(o => o.titel !== offer.title);
-      // Add as package
+      // Allow multiple instances - add as package with unique ID
       state.offerCart.push({
-        id: "ERB-" + Date.now(),
+        id: "ERB-" + Date.now() + "-" + Math.random(),
         titel: offer.title,
         paketpris: offer.paketpris,
         antal: 1,
