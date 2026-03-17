@@ -226,6 +226,8 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 16px;
+      overflow: visible;
+      padding-bottom: 60px;
     }
     .offer-card {
       position: relative;
@@ -306,10 +308,10 @@
 
     /* Erbjudande-pil-bubbla */
     .erbjudande-pil-wrapper {
-      display: flex;
-      align-items: flex-start;
-      margin-top: 12px;
-      margin-left: 20px;
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 16px;
+      z-index: 10;
     }
     .erbjudande-pil-bubbla {
       background: linear-gradient(135deg, #72383D, #8B4449);
@@ -1872,13 +1874,6 @@
                 <div>
                   <h2 class="section-title" style="font-size:36px;">Just nu</h2>
                   <div class="offers-grid" id="offersGrid"></div>
-                  <div class="erbjudande-pil-wrapper" id="erbjudandePilWrapper">
-                    <div class="erbjudande-pil-bubbla">
-                      <span class="pil-emoji">👆</span>
-                      <p class="pil-text">Nu funkar den faktiskt!</p>
-                      <p class="pil-subtext">Tryck & spara 5 kr 🎉</p>
-                    </div>
-                  </div>
                 </div>
                 <div class="wish-row">
                   <button class="wish-trigger-btn" id="wishTriggerBtn" type="button">💌 Önska en produkt</button>
@@ -3065,17 +3060,29 @@
       const offers = loadOffers();
       const bubblaInst = loadBubblaInställningar();
       const valjKnappInst = loadValjKnappInstallningar();
-      offersGrid.innerHTML = offers.map((o, i) => `
-        <div class="offer-card" style="cursor:pointer;display:flex;align-items:center;gap:12px;" data-offer-idx="${i}">
+      let bubblaPlacerad = false;
+      offersGrid.innerHTML = offers.map((o, i) => {
+        const harKnapp = o.paketpris && valjKnappInst.visaValjKnapp;
+        const visaBubblaHär = harKnapp && !bubblaPlacerad && bubblaInst.visaBubbla;
+        if (visaBubblaHär) bubblaPlacerad = true;
+        return `
+        <div class="offer-card" style="cursor:pointer;display:flex;align-items:center;gap:12px;position:relative;overflow:visible;" data-offer-idx="${i}">
           <div class="offer-pill">${escapeHtml(o.type)}</div>
           <div class="offer-info" style="flex:1;">
             <div class="offer-title">${escapeHtml(o.title)}</div>
             <div class="offer-desc">${escapeHtml(o.desc)}</div>
             ${o.price ? `<div class="offer-price">${escapeHtml(o.price)}</div>` : ""}
           </div>
-          ${o.paketpris && valjKnappInst.visaValjKnapp ? `<button class="erbjudande-välj-knapp" data-offer-idx="${i}">Ja, tack! 🛒</button>` : ""}
-        </div>
-      `).join("");
+          ${harKnapp ? `<button class="erbjudande-välj-knapp" data-offer-idx="${i}">Ja, tack! 🛒</button>` : ""}
+          ${visaBubblaHär ? `<div class="erbjudande-pil-wrapper" id="erbjudandePilWrapper">
+            <div class="erbjudande-pil-bubbla">
+              <span class="pil-emoji">👆</span>
+              <p class="pil-text">${escapeHtml(bubblaInst.textRad1)}</p>
+              <p class="pil-subtext">${escapeHtml(bubblaInst.textRad2)}</p>
+            </div>
+          </div>` : ""}
+        </div>`;
+      }).join("");
 
       // Click handler for välj-knappar
       offersGrid.querySelectorAll(".erbjudande-välj-knapp").forEach(btn => {
@@ -3096,19 +3103,7 @@
         });
       });
 
-      // Render bubbla
-      const bubblaEl = document.getElementById("erbjudandePilWrapper");
-      if (bubblaEl) {
-        if (bubblaInst.visaBubbla) {
-          bubblaEl.style.display = "flex";
-          const textEl = bubblaEl.querySelector(".pil-text");
-          const subEl = bubblaEl.querySelector(".pil-subtext");
-          if (textEl) textEl.textContent = bubblaInst.textRad1;
-          if (subEl) subEl.textContent = bubblaInst.textRad2;
-        } else {
-          bubblaEl.style.display = "none";
-        }
-      }
+      // Bubbla renderas nu direkt inuti offer-kortet ovan
     }
 
     function läggTillErbjudande(offer) {
