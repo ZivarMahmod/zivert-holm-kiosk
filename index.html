@@ -545,7 +545,7 @@
       padding: 16px 0;
       overflow-y: auto;
     }
-    .admin-nav-item {
+    .anav-item {
       display: flex;
       align-items: center;
       gap: 10px;
@@ -557,8 +557,8 @@
       transition: all .12s;
       user-select: none;
     }
-    .admin-nav-item:hover { color: rgba(255,255,255,.7); }
-    .admin-nav-item.active {
+    .anav-item:hover { color: rgba(255,255,255,.7); }
+    .anav-item.active {
       color: #fff;
       border-left-color: #6c63ff;
       background: rgba(255,255,255,.07);
@@ -1365,20 +1365,20 @@
                 <div class="admin-body">
                   <!-- Nav -->
                   <nav class="admin-nav">
-                    <div class="admin-nav-item active" data-section="rapport">📊 Rapport</div>
-                    <div class="admin-nav-item" data-section="erbjudanden">🏷 Erbjudanden</div>
-                    <div class="admin-nav-item" data-section="produkter">📦 Produkter</div>
-                    <div class="admin-nav-item" data-section="installningar">⚙ Inställningar</div>
-                    <div class="admin-nav-item" data-section="wishes">💌 Önskningar</div>
-                    <div class="admin-nav-item" data-section="receipts">🧾 Kvitton</div>
-                    <div class="admin-nav-item" data-section="inventory">📦 Lager</div>
+                    <div class="anav-item active" data-section="report">📊 Rapport</div>
+                    <div class="anav-item" data-section="products">📦 Produkter</div>
+                    <div class="anav-item" data-section="inventory">📦 Lager</div>
+                    <div class="anav-item" data-section="offers">🏷 Erbjudanden</div>
+                    <div class="anav-item" data-section="wishes">💌 Önskningar</div>
+                    <div class="anav-item" data-section="receipts">🧾 Kvitton</div>
+                    <div class="anav-item" data-section="settings">⚙ Inställningar</div>
                   </nav>
 
                   <!-- Content -->
                   <div class="admin-content">
 
                     <!-- Rapport -->
-                    <div class="admin-section active" id="adminSectionRapport">
+                    <div class="admin-section active" id="adminSectionReport">
                       <h3 class="admin-section-title">Försäljningsrapport</h3>
                       <div class="report-filter-row">
                         <button class="filter-btn" id="report7DaysBtn" type="button">Senaste 7 dagar</button>
@@ -1407,7 +1407,7 @@
                     </div>
 
                     <!-- Erbjudanden -->
-                    <div class="admin-section" id="adminSectionErbjudanden">
+                    <div class="admin-section" id="adminSectionOffers">
                       <h3 class="admin-section-title">Erbjudanden</h3>
                       <div class="offers-edit-grid">
                         <div class="offer-edit-card">
@@ -1469,7 +1469,7 @@
                     </div>
 
                     <!-- Produkter -->
-                    <div class="admin-section" id="adminSectionProdukter">
+                    <div class="admin-section" id="adminSectionProducts">
                       <h3 class="admin-section-title">Produkter</h3>
                       <div class="catalog-actions-row">
                         <button class="admin-btn" id="addCategoryBtn" type="button">Lägg till kategori</button>
@@ -1480,25 +1480,66 @@
                     </div>
 
                     <!-- Inställningar -->
-                    <div class="admin-section" id="adminSectionInstallningar">
-                      <h3 class="admin-section-title">Inställningar</h3>
-                      <div class="settings-grid">
-                        <div class="settings-field">
-                          <label class="admin-input-label">Swish-nummer</label>
-                          <input class="admin-input" type="text" id="settingsSwishNumber" placeholder="07XXXXXXXX" />
+                    <div class="admin-section" id="adminSectionSettings">
+                      <div class="admin-section-title">Inställningar</div>
+
+                      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+                        <!-- VÄNSTER — Swish -->
+                        <div style="display:flex;flex-direction:column;gap:10px;">
+                          <div style="font-size:16px;font-style:italic;color:#ffd966;margin-bottom:4px;">Swish</div>
+                          <label style="font-size:12px;letter-spacing:1px;color:rgba(255,255,255,.5);">SWISH-NUMMER</label>
+                          <input class="catalog-input" type="text" id="swishNumberInput" placeholder="07XXXXXXXX" />
+                          <label style="font-size:12px;letter-spacing:1px;color:rgba(255,255,255,.5);">ANTECKNINGAR</label>
+                          <textarea
+                            id="swishNotesInput"
+                            style="width:100%;height:100px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#fff;font-family:Georgia,serif;font-size:16px;padding:10px 14px;resize:none;outline:none;"
+                            placeholder="Egna anteckningar, t.ex. backup-nummer eller info..."
+                          ></textarea>
+                          <button class="report-action-btn" id="saveSwishBtn" type="button">Spara Swish-inställningar</button>
+                          <div style="font-size:13px;color:rgba(255,255,255,.4);font-style:italic;" id="swishSaveStatus"></div>
                         </div>
-                        <div class="settings-field">
-                          <label class="admin-input-label">Adminlösenord</label>
-                          <input class="admin-input" type="text" id="settingsPassword" placeholder="Nytt lösenord" />
+
+                        <!-- HÖGER — Lösenord -->
+                        <div style="display:flex;flex-direction:column;gap:16px;">
+                          <div style="font-size:16px;font-style:italic;color:#ffd966;margin-bottom:4px;">Lösenord</div>
+
+                          <!-- Admin-lösenord -->
+                          <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;">
+                            <div style="font-size:14px;color:rgba(255,255,255,.6);margin-bottom:10px;letter-spacing:1px;">ADMINLÖSENORD</div>
+                            <button class="catalog-small-btn" id="changeAdminPwBtn" type="button" style="width:100%;font-size:16px;padding:10px;">Byt adminlösenord</button>
+                          </div>
+
+                          <!-- Kvitto-lösenord -->
+                          <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;">
+                            <div style="font-size:14px;color:rgba(255,255,255,.6);margin-bottom:10px;letter-spacing:1px;">KVITTO-LÖSENORD</div>
+                            <div style="font-size:12px;color:rgba(255,255,255,.35);margin-bottom:10px;">Används för att tagga/avtagga kvitton som TEST.</div>
+                            <button class="catalog-small-btn" id="changeReceiptPwBtn" type="button" style="width:100%;font-size:16px;padding:10px;">Byt kvittolösenord</button>
+                          </div>
                         </div>
-                        <div style="display:grid;gap:6px;">
-                          <label style="font-size:14px;letter-spacing:1px;color:rgba(255,255,255,.6);">KVITTO-LÖSENORD</label>
-                          <input class="catalog-input" type="password" id="receiptDeletePwInput" placeholder="Nuvarande: ••••••" />
-                          <div style="font-size:13px;color:rgba(255,255,255,.4);">Används för att tagga/avtagga kvitton som TEST.</div>
-                        </div>
-                        <button class="admin-btn" id="saveSettingsBtn" type="button">Spara inställningar</button>
-                        <p class="catalog-status" id="settingsSaveStatus"></p>
+
                       </div>
+
+                      <!-- Byt lösenord modal -->
+                      <div id="changePwModal" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center;">
+                        <div style="background:linear-gradient(160deg,#1e1b3a,#2d2b50);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:28px;width:420px;display:flex;flex-direction:column;gap:14px;">
+                          <div style="font-size:22px;font-style:italic;color:#fff;" id="changePwModalTitle">Byt lösenord</div>
+                          <div>
+                            <label style="font-size:12px;letter-spacing:1px;color:rgba(255,255,255,.5);display:block;margin-bottom:6px;">NUVARANDE LÖSENORD</label>
+                            <input class="catalog-input" type="password" id="changePwCurrent" placeholder="Ange nuvarande" autocomplete="off" />
+                          </div>
+                          <div>
+                            <label style="font-size:12px;letter-spacing:1px;color:rgba(255,255,255,.5);display:block;margin-bottom:6px;">NYTT LÖSENORD</label>
+                            <input class="catalog-input" type="password" id="changePwNew" placeholder="Ange nytt" autocomplete="off" />
+                          </div>
+                          <div style="font-size:14px;color:#f87171;min-height:20px;" id="changePwError"></div>
+                          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                            <button class="catalog-small-btn" id="changePwCancelBtn" type="button" style="padding:10px;font-size:16px;">Avbryt</button>
+                            <button class="catalog-small-btn" id="changePwConfirmBtn" type="button" style="background:linear-gradient(135deg,#6c63ff,#3b82f6);color:#fff;border:none;padding:10px;font-size:16px;">Spara</button>
+                          </div>
+                        </div>
+                      </div>
+
                     </div>
 
                     <!-- Önskningar -->
@@ -2032,8 +2073,6 @@
     const payMessageText      = document.getElementById("payMessageText");
     const payNumberText       = document.getElementById("payNumberText");
     const saveOffersBtn       = document.getElementById("saveOffersBtn");
-    const saveSettingsBtn     = document.getElementById("saveSettingsBtn");
-    const settingsSaveStatus  = document.getElementById("settingsSaveStatus");
 
     /* ── Utilities ── */
     function formatKr(value) { return `${value} kr`; }
@@ -2086,26 +2125,25 @@
       renderReport(mode);
       renderCatalogEditor();
       loadOffersIntoEditor();
-      loadSettingsIntoEditor();
     }
 
     /* ── Admin nav ── */
     function showAdminSection(name) {
       state.currentAdminSection = name;
       document.querySelectorAll(".admin-section").forEach(el => el.classList.remove("active"));
-      document.querySelectorAll(".admin-nav-item").forEach(el => el.classList.remove("active"));
+      document.querySelectorAll(".anav-item").forEach(el => el.classList.remove("active"));
       const sec = document.getElementById("adminSection" + name.charAt(0).toUpperCase() + name.slice(1));
       if (sec) sec.classList.add("active");
-      document.querySelectorAll(`.admin-nav-item[data-section="${name}"]`).forEach(el => el.classList.add("active"));
+      document.querySelectorAll(`.anav-item[data-section="${name}"]`).forEach(el => el.classList.add("active"));
     }
-    document.querySelectorAll(".admin-nav-item").forEach(item => {
+    document.querySelectorAll(".anav-item").forEach(item => {
       item.addEventListener("click", () => {
         const section = item.dataset.section;
         showAdminSection(section);
-        if (section === "rapport") renderReport(state.currentReportMode);
-        if (section === "produkter") renderCatalogEditor();
-        if (section === "erbjudanden") loadOffersIntoEditor();
-        if (section === "installningar") loadSettingsIntoEditor();
+        if (section === "report") renderReport(state.currentReportMode);
+        if (section === "products") renderCatalogEditor();
+        if (section === "offers") loadOffersIntoEditor();
+        if (section === "settings") initSettingsForm();
         if (section === "wishes") renderWishes();
         if (section === "receipts") renderReceiptsAdmin();
         if (section === "inventory") { initInventoryIfEmpty(); renderInventoryEditor(); }
@@ -2720,29 +2758,79 @@
     });
 
     /* ── Settings editor ── */
-    function loadSettingsIntoEditor() {
-      const s = loadSettings();
-      const swishEl = document.getElementById("settingsSwishNumber");
-      const passEl  = document.getElementById("settingsPassword");
-      if (swishEl) swishEl.value = s.swishNumber || SWISH_NUMBER;
-      if (passEl)  passEl.value  = s.password     || "";
+    function loadSwishSettings() {
+      try {
+        const raw = localStorage.getItem("zivert-holm-settings-v1");
+        return raw ? JSON.parse(raw) : {};
+      } catch(e) { return {}; }
     }
-    function saveSettingsFromEditor() {
-      const swishEl = document.getElementById("settingsSwishNumber");
-      const passEl  = document.getElementById("settingsPassword");
-      const current = loadSettings();
-      const next = {
-        swishNumber: (swishEl ? swishEl.value.trim() : "") || current.swishNumber || SWISH_NUMBER,
-        password:    (passEl  ? passEl.value.trim()  : "") || current.password    || ""
-      };
-      saveSettings(next);
-      const newReceiptPw = document.getElementById("receiptDeletePwInput").value.trim();
-      if (newReceiptPw.length >= 4) {
-        localStorage.setItem(RECEIPT_DELETE_PASSWORD_KEY, newReceiptPw);
+
+    function initSettingsForm() {
+      const s = loadSwishSettings();
+      const swishInput = document.getElementById("swishNumberInput");
+      const notesInput = document.getElementById("swishNotesInput");
+      if (swishInput) swishInput.value = s.swishNumber || SWISH_NUMBER;
+      if (notesInput) notesInput.value = s.notes || "";
+    }
+
+    document.getElementById("saveSwishBtn").addEventListener("click", () => {
+      const s = loadSwishSettings();
+      s.swishNumber = document.getElementById("swishNumberInput").value.trim();
+      s.notes = document.getElementById("swishNotesInput").value;
+      localStorage.setItem("zivert-holm-settings-v1", JSON.stringify(s));
+      document.getElementById("swishSaveStatus").textContent = "Sparat!";
+      setTimeout(() => document.getElementById("swishSaveStatus").textContent = "", 2000);
+    });
+
+    // Byt lösenord modal
+    let changePwTarget = null;
+
+    function openChangePwModal(target) {
+      changePwTarget = target;
+      document.getElementById("changePwModalTitle").textContent =
+        target === "admin" ? "Byt adminlösenord" : "Byt kvittolösenord";
+      document.getElementById("changePwCurrent").value = "";
+      document.getElementById("changePwNew").value = "";
+      document.getElementById("changePwError").textContent = "";
+      const modal = document.getElementById("changePwModal");
+      modal.style.display = "flex";
+    }
+
+    document.getElementById("changeAdminPwBtn").addEventListener("click", () => openChangePwModal("admin"));
+    document.getElementById("changeReceiptPwBtn").addEventListener("click", () => openChangePwModal("receipt"));
+    document.getElementById("changePwCancelBtn").addEventListener("click", () => {
+      document.getElementById("changePwModal").style.display = "none";
+    });
+
+    document.getElementById("changePwConfirmBtn").addEventListener("click", () => {
+      const current = document.getElementById("changePwCurrent").value;
+      const newPw = document.getElementById("changePwNew").value.trim();
+      const errorEl = document.getElementById("changePwError");
+
+      if (!newPw || newPw.length < 4) {
+        errorEl.textContent = "Nytt lösenord måste vara minst 4 tecken.";
+        return;
       }
-      settingsSaveStatus.textContent = "Inställningar sparade.";
-      setTimeout(() => { settingsSaveStatus.textContent = ""; }, 2000);
-    }
+
+      if (changePwTarget === "admin") {
+        if (current !== getEffectivePassword()) {
+          errorEl.textContent = "Fel nuvarande lösenord.";
+          return;
+        }
+        const s = loadSettings();
+        s.password = newPw;
+        saveSettings(s);
+      } else {
+        if (current !== getReceiptDeletePassword()) {
+          errorEl.textContent = "Fel nuvarande lösenord.";
+          return;
+        }
+        localStorage.setItem(RECEIPT_DELETE_PASSWORD_KEY, newPw);
+      }
+
+      document.getElementById("changePwModal").style.display = "none";
+      alert("Lösenord bytt!");
+    });
 
     /* ── Event wiring ── */
     overviewGrid.addEventListener("click", e => {
@@ -2804,7 +2892,6 @@
     saveCatalogBtn.addEventListener("click",     () => saveCatalogChanges());
     addCategoryBtn.addEventListener("click",     () => addCategory());
     saveOffersBtn.addEventListener("click",      () => saveOffersFromEditor());
-    saveSettingsBtn.addEventListener("click",    () => saveSettingsFromEditor());
     catalogEditor.addEventListener("click", e => {
       const btn = e.target.closest("[data-catalog-action]");
       if (!btn) return;
@@ -2991,116 +3078,114 @@
       const meta = document.getElementById("receiptsMetaText");
       const list = document.getElementById("receiptsList");
 
-      const testReceipts = receipts.filter(r => r.tagged === true || r.tagged === "test");
-      const egetReceipts = receipts.filter(r => r.tagged === "eget_bruk");
-      const testTotal = testReceipts.reduce((s, r) => s + Number(r.total), 0);
-      const egetTotal = egetReceipts.reduce((s, r) => s + Number(r.total), 0);
+      const taggedTotal = receipts
+        .filter(r => r.tagged)
+        .reduce((s, r) => s + Number(r.total), 0);
 
-      let metaText = `Totalt ${receipts.length} kvitton registrerade.`;
-      if (testTotal > 0) metaText += ` TEST: ${testReceipts.length} st (−${testTotal} kr).`;
-      if (egetTotal > 0) metaText += ` EGET BRUK: ${egetReceipts.length} st (−${egetTotal} kr).`;
-      meta.textContent = metaText;
+      meta.textContent = `Totalt ${receipts.length} kvitton.${taggedTotal > 0 ? ` Varav ${receipts.filter(r=>r.tagged).length} taggade som TEST (−${taggedTotal} kr).` : ""}`;
 
       if (!receipts.length) {
         list.innerHTML = '<div class="report-empty">Inga kvitton registrerade ännu.</div>';
         return;
       }
 
-      list.innerHTML = receipts.map(r => {
-        const tagged = isTagged(r);
-        return `
-        <div class="report-group" style="margin-bottom:10px;${getTagStyle(r.tagged)}">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
-            <div style="display:flex;align-items:center;gap:10px;">
-              <span style="font-size:24px;font-weight:700;color:#ffd966;">#${escapeHtml(r.id)}</span>
-              ${getTagBadge(r.tagged)}
+      list.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+          <button class="catalog-small-btn" id="selectAllReceiptsBtn" type="button">Markera alla</button>
+          <button class="catalog-small-btn" id="deselectAllReceiptsBtn" type="button">Avmarkera alla</button>
+          <button class="catalog-small-btn" id="tagSelectedBtn" type="button" style="background:linear-gradient(135deg,#6c63ff,#3b82f6);color:#fff;border:none;display:none;">Tagga markerade</button>
+        </div>
+        ${receipts.map(r => `
+          <div class="report-group" style="margin-bottom:10px;${r.tagged ? 'opacity:.55;border:1px solid rgba(255,180,0,.3);' : ''}">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <input type="checkbox" class="receipt-checkbox" data-receipt-id="${escapeHtml(r.id)}" style="width:20px;height:20px;cursor:pointer;" />
+                <span style="font-size:24px;font-weight:700;color:#ffd966;">#${escapeHtml(r.id)}</span>
+                ${r.tagged ? '<span style="font-size:12px;background:rgba(255,180,0,.2);color:#ffd966;padding:3px 10px;border-radius:6px;letter-spacing:1px;">TEST</span>' : ''}
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:14px;color:rgba(255,255,255,.45);">${new Date(r.time).toLocaleString("sv-SE")}</span>
+                <button class="catalog-small-btn" type="button" data-receipt-tag="${escapeHtml(r.id)}" style="font-size:13px;padding:4px 12px;">
+                  ${r.tagged ? "Avmarkera TEST" : "Tagga som TEST"}
+                </button>
+              </div>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-              <span style="font-size:14px;color:rgba(255,255,255,.45);">${new Date(r.time).toLocaleString("sv-SE")}</span>
-              <button class="catalog-small-btn" type="button"
-                data-receipt-tag="${escapeHtml(r.id)}" data-tag-type="test"
-                style="font-size:12px;padding:3px 10px;">
-                ${(r.tagged === "test" || r.tagged === true) ? "✕ TEST" : "TEST"}</button>
-              <button class="catalog-small-btn" type="button"
-                data-receipt-tag="${escapeHtml(r.id)}" data-tag-type="eget_bruk"
-                style="font-size:12px;padding:3px 10px;">
-                ${r.tagged === "eget_bruk" ? "✕ EGET" : "EGET BRUK"}</button>
+            ${r.items.map(i => `
+              <div class="report-row">
+                <span>${escapeHtml(i.qty)} × ${escapeHtml(i.name)}</span>
+                <span>${escapeHtml(i.sum)} kr</span>
+              </div>
+            `).join("")}
+            <div style="margin-top:8px;font-size:22px;font-weight:700;color:#fff;text-align:right;">
+              ${r.tagged ? `<span style="text-decoration:line-through;opacity:.5;">${escapeHtml(r.total)} kr</span>` : `${escapeHtml(r.total)} kr`}
             </div>
           </div>
-          ${r.items.map(i => `
-            <div class="report-row">
-              <span>${escapeHtml(i.qty)} × ${escapeHtml(i.name)}</span>
-              <span>${escapeHtml(i.sum)} kr</span>
-            </div>
-          `).join("")}
-          <div style="margin-top:8px;font-size:22px;font-weight:700;color:#fff;text-align:right;">${tagged ? '<span style="text-decoration:line-through;opacity:.5;">'+escapeHtml(r.total)+' kr</span>' : escapeHtml(r.total)+' kr'}</div>
-        </div>`;
-      }).join("");
-    }
+        `).join("")}
+      `;
 
-    /* ── Receipt tag password modal ── */
-    let pendingReceiptTagId = null;
-    let pendingTagType = null;
-    const receiptTagOverlay = document.getElementById("receiptTagOverlay");
-    const receiptTagPasswordInput = document.getElementById("receiptTagPasswordInput");
-    const receiptTagError = document.getElementById("receiptTagError");
-    const receiptTagCancelBtn = document.getElementById("receiptTagCancelBtn");
-    const receiptTagConfirmBtn = document.getElementById("receiptTagConfirmBtn");
-
-    function openReceiptTagModal(receiptId, tagType) {
-      pendingReceiptTagId = receiptId;
-      pendingTagType = tagType;
-      receiptTagPasswordInput.value = "";
-      receiptTagError.textContent = "";
-      const label = tagType === "eget_bruk" ? "EGET BRUK" : "TEST";
-      document.getElementById("receiptTagTitle").textContent = `Tagga som ${label}`;
-      receiptTagOverlay.classList.add("active");
-      receiptTagOverlay.setAttribute("aria-hidden", "false");
-      setTimeout(() => receiptTagPasswordInput.focus(), 30);
-    }
-    function closeReceiptTagModal() {
-      receiptTagOverlay.classList.remove("active");
-      receiptTagOverlay.setAttribute("aria-hidden", "true");
-      receiptTagError.textContent = "";
-      receiptTagPasswordInput.value = "";
-      pendingReceiptTagId = null;
-      pendingTagType = null;
-    }
-    function tryReceiptTag() {
-      if (receiptTagPasswordInput.value !== getReceiptDeletePassword()) {
-        receiptTagError.textContent = "Fel lösenord.";
-        receiptTagPasswordInput.select();
-        return;
+      // Checkbox logik
+      function updateTagSelectedBtn() {
+        const checked = document.querySelectorAll(".receipt-checkbox:checked");
+        const btn = document.getElementById("tagSelectedBtn");
+        if (btn) btn.style.display = checked.length > 0 ? "block" : "none";
       }
-      const receipts = loadReceipts();
-      const receipt = receipts.find(r => r.id === pendingReceiptTagId);
-      if (!receipt) { closeReceiptTagModal(); return; }
-      // Toggle: if already this tag, remove it. Otherwise set it.
-      if (receipt.tagged === pendingTagType || (pendingTagType === "test" && receipt.tagged === true)) {
-        receipt.tagged = false;
-      } else {
-        receipt.tagged = pendingTagType;
-      }
-      localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-      closeReceiptTagModal();
-      renderReceiptsAdmin();
+
+      list.querySelectorAll(".receipt-checkbox").forEach(cb => {
+        cb.addEventListener("change", updateTagSelectedBtn);
+      });
+
+      document.getElementById("selectAllReceiptsBtn").addEventListener("click", () => {
+        document.querySelectorAll(".receipt-checkbox").forEach(cb => cb.checked = true);
+        updateTagSelectedBtn();
+      });
+
+      document.getElementById("deselectAllReceiptsBtn").addEventListener("click", () => {
+        document.querySelectorAll(".receipt-checkbox").forEach(cb => cb.checked = false);
+        updateTagSelectedBtn();
+      });
+
+      document.getElementById("tagSelectedBtn").addEventListener("click", () => {
+        const checked = Array.from(document.querySelectorAll(".receipt-checkbox:checked"));
+        if (!checked.length) return;
+
+        const pw = prompt(`Ange kvitto-lösenord för att tagga ${checked.length} kvitto(n):`);
+        if (pw !== getReceiptDeletePassword()) {
+          alert("Fel lösenord.");
+          return;
+        }
+
+        const receipts = loadReceipts();
+        const ids = checked.map(cb => cb.dataset.receiptId);
+        const allTagged = ids.every(id => {
+          const r = receipts.find(r => r.id === id);
+          return r && r.tagged;
+        });
+
+        ids.forEach(id => {
+          const r = receipts.find(r => r.id === id);
+          if (r) r.tagged = !allTagged;
+        });
+
+        localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
+        renderReceiptsAdmin();
+      });
+
+      // Enskild tagg-knapp
+      list.querySelectorAll("[data-receipt-tag]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const pw = prompt("Ange kvitto-lösenord:");
+          if (pw !== getReceiptDeletePassword()) {
+            alert("Fel lösenord.");
+            return;
+          }
+          const receipts = loadReceipts();
+          const r = receipts.find(r => r.id === btn.dataset.receiptTag);
+          if (r) r.tagged = !r.tagged;
+          localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
+          renderReceiptsAdmin();
+        });
+      });
     }
-
-    receiptTagCancelBtn.addEventListener("click", closeReceiptTagModal);
-    receiptTagConfirmBtn.addEventListener("click", tryReceiptTag);
-    receiptTagPasswordInput.addEventListener("keydown", e => {
-      if (e.key === "Enter")  { e.preventDefault(); tryReceiptTag(); }
-      if (e.key === "Escape") closeReceiptTagModal();
-    });
-    receiptTagOverlay.addEventListener("click", e => {
-      if (e.target === receiptTagOverlay) closeReceiptTagModal();
-    });
-
-    document.getElementById("receiptsList").addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-receipt-tag]");
-      if (!btn) return;
-      openReceiptTagModal(btn.dataset.receiptTag, btn.dataset.tagType);
-    });
 
     /* ── Inventory editor (unified Lager & Stock) ── */
     function getProductNames() {
