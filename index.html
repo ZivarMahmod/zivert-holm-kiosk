@@ -6408,13 +6408,11 @@
     /* ── Bootstrap ── */
     async function bootstrap() {
       // 1. Ladda från Firebase (3s timeout, fallback till localStorage)
-      await loadFromFirebase();
+      try { await loadFromFirebase(); } catch(e) { console.warn("Firebase load failed:", e); }
       // 2. Migrera lösenord till hashes (körs en gång per enhet)
-      await migratePasswordsToHashes();
+      try { await migratePasswordsToHashes(); } catch(e) { console.warn("Password migration failed:", e); }
       // 3. Migrera saknade nycklar från localStorage → Firebase
-      if (window._fbDb) {
-        await migrateToFirebase();
-      }
+      try { if (window._fbDb) await migrateToFirebase(); } catch(e) { console.warn("Firebase migration failed:", e); }
       _fbReady = true;
 
       // 2. Ladda kategori-data (kan ha uppdaterats från Firebase)
