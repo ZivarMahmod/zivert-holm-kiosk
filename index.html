@@ -1462,7 +1462,7 @@
     <div id="mobileLogoTrigger" style="position:fixed;top:60px;right:0;width:80px;height:80px;z-index:9999;opacity:0;cursor:default;"></div>
 
     <!-- MOBIL STARTSIDA -->
-    <div id="mobileOverview" style="padding:20px;">
+    <div id="mobileOverview" style="padding:20px;padding-top:env(safe-area-inset-top,20px);">
       <div style="margin-bottom:24px;">
         <h1 style="font-size:32px;font-style:italic;color:#fff;margin:0 0 6px;">Vad tar du idag?</h1>
         <p style="font-size:13px;color:rgba(255,255,255,.5);letter-spacing:1px;margin:0;">BLÄDDRA I UTBUDET</p>
@@ -1476,9 +1476,9 @@
     </div>
 
     <!-- MOBIL KATEGORIVY -->
-    <div id="mobileCategoryView" style="display:none;padding:20px;">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
-        <button id="mobileBackBtn" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#fff;font-family:Georgia,serif;font-size:16px;padding:8px 16px;cursor:pointer;">← Tillbaka</button>
+    <div id="mobileCategoryView" style="display:none;padding:20px;padding-top:env(safe-area-inset-top,20px);">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;margin-top:16px;">
+        <button id="mobileBackBtn" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#fff;font-family:Georgia,serif;font-size:16px;padding:8px 16px;cursor:pointer;flex-shrink:0;">← Tillbaka</button>
         <h2 id="mobileCatTitle" style="font-size:26px;font-style:italic;color:#fff;margin:0;"></h2>
       </div>
       <div id="mobileProductGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;"></div>
