@@ -2986,12 +2986,88 @@
     }
     function getItemKey(catKey, itemId) { return `${catKey}__${itemId}`; }
     function getQty(catKey, itemId) { return state.qty[getItemKey(catKey, itemId)] || 0; }
+    /* ── Deal Detection ── */
+    let _skipOfferDetection = false;
+
+    function findMatchingOffers() {
+      const cart = getCart();
+      const offers = loadOffers();
+      const matches = [];
+
+      offers.forEach((offer, idx) => {
+        if (!offer.produkter || offer.produkter.length === 0) return;
+
+        // Check if all products in offer are in cart with correct quantities
+        const allMatch = offer.produkter.every(offerProd => {
+          return cart.some(cartItem =>
+            cartItem.itemId === offerProd.produktId &&
+            cartItem.qty === offerProd.antal
+          );
+        });
+
+        // Also check that no extra products in cart (should only have offer items)
+        const noExtraItems = cart.length === offer.produkter.length;
+
+        if (allMatch && noExtraItems) {
+          matches.push({ offer, index: idx });
+        }
+      });
+
+      return matches;
+    }
+
+    async function suggestOfferForCart() {
+      if (_skipOfferDetection) return;
+
+      const matches = findMatchingOffers();
+      if (matches.length === 0) return;
+
+      const match = matches[0]; // Use first match
+      const offer = match.offer;
+      const cart = getCart();
+      const totalPrice = cart.reduce((s, i) => s + i.sum, 0);
+      // Handle both price (string) and paketpris (numeric) properties
+      const offerPrice = offer.paketpris || parseInt(offer.price) || 0;
+      const savings = totalPrice - offerPrice;
+
+      if (savings <= 0) return; // No benefit to suggest
+
+      const message = `Är detta det ${offer.type.toLowerCase()}?\n\n${offer.title}\n${offer.desc}\n\nSpara ${savings} kr!`;
+
+      const confirmed = await showGlobalModal({
+        title: "🎉 Hitta ett bra bud!",
+        subtitle: message,
+        type: "confirm",
+        confirmLabel: "Ja, ta det!",
+        cancelLabel: "Nej, behål produkterna"
+      });
+
+      if (confirmed === true) {
+        _skipOfferDetection = true;
+        // Remove individual products and add offer
+        const currentCart = getCart();
+        currentCart.forEach(item => {
+          setQty(item.categoryKey, item.itemId, 0);
+        });
+        // Ensure offer has paketpris set
+        if (!offer.paketpris && offer.price) {
+          offer.paketpris = parseInt(offer.price);
+        }
+        läggTillErbjudande(offer);
+        _skipOfferDetection = false;
+      }
+    }
+
     function setQty(catKey, itemId, value) {
       const key = getItemKey(catKey, itemId);
       if (value <= 0) delete state.qty[key];
       else state.qty[key] = value;
       renderSummary();
       renderCurrentCategory();
+      // Check if current cart matches any offers (unless we're already converting)
+      if (!_skipOfferDetection) {
+        setTimeout(() => suggestOfferForCart(), 200);
+      }
     }
     function updateQty(catKey, itemId, delta) {
       const current = getQty(catKey, itemId);
