@@ -3269,22 +3269,37 @@
         cartItems.innerHTML = Array.from(grouped.values()).map(it => {
           const tagHtml = it.ärErbjudande ? `<span style="display:inline-block;background:#f0c040;color:#322D29;font-size:11px;padding:3px 8px;border-radius:4px;font-weight:bold;">🏷 Paket</span>` : '';
           const countDisplay = it.count > 1 ? `<span style="font-size:12px;color:#6b7c74;margin-left:6px;">(${it.count} st)</span>` : '';
+          const cartKey = it.ärErbjudande ? `offer-${it.itemId}` : `prod-${it.categoryKey}-${it.itemId}`;
           return `
-            <div class="cart-row">
+            <div class="cart-row" data-cart-key="${escapeHtml(cartKey)}">
               <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;">
                 <div style="flex:1;">
                   <div style="margin-bottom:${tagHtml ? '4px' : '0'};">${escapeHtml(it.qty)} × ${escapeHtml(it.name)}${countDisplay}</div>
                   ${tagHtml}
                 </div>
                 <div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
-                  <button onclick="${it.ärErbjudande ? `updateOfferQty('${it.itemId}', -1)` : `updateQty('${it.categoryKey}', '${it.itemId}', -1)`}" style="width:24px;height:24px;border:1px solid rgba(0,0,0,.1);background:#f0f4f2;border-radius:4px;color:#2c3e35;font-weight:bold;cursor:pointer;font-size:12px;font-size:16px;">−</button>
-                  <button onclick="${it.ärErbjudande ? `updateOfferQty('${it.itemId}', 1)` : `updateQty('${it.categoryKey}', '${it.itemId}', 1)`}" style="width:24px;height:24px;border:1px solid rgba(0,0,0,.1);background:#f0f4f2;border-radius:4px;color:#2c3e35;font-weight:bold;cursor:pointer;font-size:12px;font-size:16px;">+</button>
+                  <button class="cart-qty-btn" data-action="minus" data-type="${it.ärErbjudande ? 'offer' : 'prod'}" data-cat="${escapeHtml(it.categoryKey)}" data-id="${escapeHtml(it.itemId)}" style="width:24px;height:24px;border:1px solid rgba(0,0,0,.1);background:#f0f4f2;border-radius:4px;color:#2c3e35;font-weight:bold;cursor:pointer;font-size:16px;">−</button>
+                  <button class="cart-qty-btn" data-action="plus" data-type="${it.ärErbjudande ? 'offer' : 'prod'}" data-cat="${escapeHtml(it.categoryKey)}" data-id="${escapeHtml(it.itemId)}" style="width:24px;height:24px;border:1px solid rgba(0,0,0,.1);background:#f0f4f2;border-radius:4px;color:#2c3e35;font-weight:bold;cursor:pointer;font-size:16px;">+</button>
                   <strong style="font-size:14px;min-width:40px;text-align:right;">${escapeHtml(it.sum)} kr</strong>
                 </div>
               </div>
             </div>
           `;
         }).join("");
+
+        // Attach event listeners to qty buttons
+        document.querySelectorAll(".cart-qty-btn").forEach(btn => {
+          btn.addEventListener("click", (e) => {
+            const type = btn.dataset.type;
+            const action = btn.dataset.action;
+            const delta = action === "minus" ? -1 : 1;
+            if (type === "offer") {
+              updateOfferQty(btn.dataset.id, delta);
+            } else {
+              updateQty(btn.dataset.cat, btn.dataset.id, delta);
+            }
+          });
+        });
       }
       itemCount.textContent = totalItems;
       totalAmount.textContent = formatKr(total);
