@@ -2919,8 +2919,8 @@
     }
     function renderOffers() {
       const offers = loadOffers();
-      offersGrid.innerHTML = offers.map(o => `
-        <div class="offer-card">
+      offersGrid.innerHTML = offers.map((o, i) => `
+        <div class="offer-card" style="cursor:pointer;" data-offer-idx="${i}">
           <div class="offer-pill">${escapeHtml(o.type)}</div>
           <div class="offer-info">
             <div class="offer-title">${escapeHtml(o.title)}</div>
@@ -2929,6 +2929,43 @@
           </div>
         </div>
       `).join("");
+
+      // Click handler for offer cards
+      offersGrid.querySelectorAll(".offer-card").forEach(card => {
+        card.addEventListener("click", () => {
+          const idx = parseInt(card.dataset.offerIdx);
+          const offer = offers[idx];
+          if (!offer || !offer.paketpris) return;
+          läggTillErbjudande(offer);
+        });
+      });
+    }
+
+    function läggTillErbjudande(offer) {
+      // Remove any existing instance of this offer
+      state.offerCart = state.offerCart.filter(o => o.titel !== offer.title);
+      // Add as package
+      state.offerCart.push({
+        id: "ERB-" + Date.now(),
+        titel: offer.title,
+        paketpris: offer.paketpris,
+        antal: 1,
+        produkter: offer.produkter || []
+      });
+      renderSummary();
+      // Brief confirmation
+      showOfferConfirmation(offer.title, offer.paketpris);
+    }
+
+    function showOfferConfirmation(title, price) {
+      const existing = document.getElementById("offerConfirmToast");
+      if (existing) existing.remove();
+      const toast = document.createElement("div");
+      toast.id = "offerConfirmToast";
+      toast.style.cssText = "position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#2c3e35;color:#fff;padding:14px 28px;border-radius:12px;font-family:Georgia,serif;font-size:18px;z-index:99998;box-shadow:0 4px 20px rgba(0,0,0,.2);animation:ssFadeIn .3s ease;";
+      toast.textContent = `✓ ${title} tillagd — ${price} kr`;
+      document.body.appendChild(toast);
+      setTimeout(() => { toast.style.animation = "ssFadeOut .5s ease forwards"; setTimeout(() => toast.remove(), 500); }, 2000);
     }
 
     /* ── Category / Product rendering ── */
@@ -3133,6 +3170,7 @@
 
     function clearCartState() {
       state.qty = {};
+      state.offerCart = [];
       renderSummary();
       renderCurrentCategory();
     }
