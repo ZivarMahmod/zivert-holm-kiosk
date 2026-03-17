@@ -3083,18 +3083,7 @@
     }
     function getFilteredSales(mode) {
       const sales = loadSales();
-      const now = new Date();
-      const startToday = getStartOfToday();
-      const startWeek = getStartOfWeek(now);
-      const sevenDaysAgo = new Date(startToday);
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-      return sales.filter(sale => {
-        const d = new Date(sale.time);
-        if (Number.isNaN(d.getTime())) return false;
-        if (mode === "7days")    return d >= sevenDaysAgo;
-        if (mode === "thisWeek") return d >= startWeek;
-        return true;
-      });
+      return sales.filter(sale => passesTimeFilter(new Date(sale.time), mode));
     }
     function aggregateSalesByProduct(sales) {
       const byCategory = new Map();
@@ -3151,19 +3140,7 @@
     }
     function getReceiptTagSummary(mode) {
       const receipts = loadReceipts().filter(r => r.status !== "ej_registrerad");
-      const now = new Date();
-      const startToday = getStartOfToday();
-      const startWeek = getStartOfWeek(now);
-      const sevenDaysAgo = new Date(startToday);
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-
-      const filtered = receipts.filter(r => {
-        const d = new Date(r.time);
-        if (Number.isNaN(d.getTime())) return false;
-        if (mode === "7days")    return d >= sevenDaysAgo;
-        if (mode === "thisWeek") return d >= startWeek;
-        return true;
-      });
+      const filtered = receipts.filter(r => passesTimeFilter(new Date(r.time), mode));
 
       // Build dynamic tag summary
       const tags = loadTags();
@@ -3186,6 +3163,45 @@
       return tagSummary;
     }
 
+    // Tidsfilter som hanterar alla modes (desktop + mobile)
+    function passesTimeFilter(d, mode) {
+      if (Number.isNaN(d.getTime())) return false;
+      const startToday = getStartOfToday();
+      if (mode === "today") return d >= startToday;
+      if (mode === "yesterday") {
+        const startYesterday = new Date(startToday);
+        startYesterday.setDate(startYesterday.getDate() - 1);
+        return d >= startYesterday && d < startToday;
+      }
+      if (mode === "thisWeek" || mode === "week") return d >= getStartOfWeek(new Date());
+      if (mode === "7days" || mode === "month") {
+        const sevenDaysAgo = new Date(startToday);
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+        return d >= sevenDaysAgo;
+      }
+      return true; // "all"
+    }
+
+    // Räkna registrerade köp direkt från kvitton (utan tagg, registrerad/gammal)
+    function getRegisteredReceiptStats(mode) {
+      const receipts = loadReceipts();
+      const filtered = receipts.filter(r => {
+        if (r.tagType) return false;
+        if (r.status === "ej_registrerad") return false;
+        return passesTimeFilter(new Date(r.time), mode);
+      });
+
+      let totalItems = 0, totalValue = 0;
+      filtered.forEach(r => {
+        totalValue += Number(r.total || 0);
+        (r.items || []).forEach(i => {
+          totalItems += Number(i.qty || 0);
+        });
+      });
+
+      return { count: filtered.length, totalItems, totalValue };
+    }
+
     function renderReport(mode) {
       state.currentReportMode = mode;
       const sales = getFilteredSales(mode);
@@ -3193,40 +3209,23 @@
       const title = getModeTitle(mode);
       const tags = getReceiptTagSummary(mode);
 
-      // Exkludera taggade kvitton från huvudsiffrorna
-      let taggedTransactions = 0, taggedValue = 0, taggedItems = 0;
-      Object.values(tags).forEach(t => {
-        taggedTransactions += t.count;
-        taggedValue += t.total;
-        t.items.forEach(i => { taggedItems += Number(i.qty || 0); });
-      });
-      const netTransactions = agg.totalTransactions - taggedTransactions;
-      const netItems = agg.totalItems - taggedItems;
-      const netValue = agg.totalValue - taggedValue;
+      // Gröna siffror: direkt från kvitton (utan tagg + registrerad)
+      const reg = getRegisteredReceiptStats(mode);
 
       if (reportPanelTitle) reportPanelTitle.textContent = title;
-      reportSalesCount.textContent = netTransactions;
-      reportItemsCount.textContent = netItems;
-      reportTotalValue.textContent = formatKr(netValue);
-      reportMetaText.textContent = buildMetaText(mode, netTransactions);
+      reportSalesCount.textContent = reg.count;
+      reportItemsCount.textContent = reg.totalItems;
+      reportTotalValue.textContent = formatKr(reg.totalValue);
+      reportMetaText.textContent = buildMetaText(mode, reg.count);
 
       // Dynamic tag stat cards + ej registrerade
       const reportTagStatsEl = document.getElementById("reportTagStats");
       if (reportTagStatsEl) {
         // Räkna ej registrerade kvitton i valt tidsintervall
         const allReceipts = loadReceipts();
-        const now2 = new Date();
-        const startToday2 = getStartOfToday();
-        const startWeek2 = getStartOfWeek(now2);
-        const sevenDaysAgo2 = new Date(startToday2);
-        sevenDaysAgo2.setDate(sevenDaysAgo2.getDate() - 6);
         const unregFiltered = allReceipts.filter(r => {
           if (r.status !== "ej_registrerad") return false;
-          const d = new Date(r.time);
-          if (Number.isNaN(d.getTime())) return false;
-          if (mode === "7days") return d >= sevenDaysAgo2;
-          if (mode === "thisWeek") return d >= startWeek2;
-          return true;
+          return passesTimeFilter(new Date(r.time), mode);
         });
         const unregCount = unregFiltered.length;
         const unregValue = unregFiltered.reduce((s, r) => s + Number(r.total || 0), 0);
@@ -4657,16 +4656,15 @@
       const agg = aggregateSalesByProduct(sales);
       const tags = getReceiptTagSummary(mode);
 
-      // Räkna bort taggade transaktioner från huvudsiffrorna
-      let taggedTransactions = 0, taggedValue = 0, taggedItems = 0;
-      Object.values(tags).forEach(t => {
-        taggedTransactions += t.count;
-        taggedValue += t.total;
-        t.items.forEach(i => { taggedItems += Number(i.qty || 0); });
-      });
-      const netTransactions = agg.totalTransactions - taggedTransactions;
-      const netValue = agg.totalValue - taggedValue;
-      const netItems = agg.totalItems - taggedItems;
+      // Gröna siffror: direkt från kvitton (utan tagg + registrerad)
+      const reg = getRegisteredReceiptStats(mode);
+      const netTransactions = reg.count;
+      const netValue = reg.totalValue;
+      const netItems = reg.totalItems;
+
+      // Fortfarande behövs för tagg-rutorna
+      let taggedTransactions = 0;
+      Object.values(tags).forEach(t => { taggedTransactions += t.count; });
 
       const modeButtons = modes.map(m =>
         `<button class="mav-mode-btn mav-btn" data-mode="${m.key}" style="${m.key === mode ? 'background:rgba(108,99,255,.2);border-color:rgba(108,99,255,.4);color:#a78bfa;' : ''}">${m.label}</button>`
@@ -4691,19 +4689,9 @@
 
       // Räkna ej registrerade kvitton i valt tidsintervall
       const allReceiptsMobile = loadReceipts();
-      const now2m = new Date();
-      const startToday2m = getStartOfToday();
-      const startWeek2m = getStartOfWeek(now2m);
-      const sevenDaysAgo2m = new Date(startToday2m);
-      sevenDaysAgo2m.setDate(sevenDaysAgo2m.getDate() - 6);
-      const mobileMode = mode === "week" ? "thisWeek" : mode === "month" ? "7days" : mode;
       const unregMobile = allReceiptsMobile.filter(r => {
         if (r.status !== "ej_registrerad") return false;
-        const d = new Date(r.time);
-        if (Number.isNaN(d.getTime())) return false;
-        if (mobileMode === "7days") return d >= sevenDaysAgo2m;
-        if (mobileMode === "thisWeek") return d >= startWeek2m;
-        return true;
+        return passesTimeFilter(new Date(r.time), mode);
       });
       const unregCountM = unregMobile.length;
       const unregValueM = unregMobile.reduce((s, r) => s + Number(r.total || 0), 0);
