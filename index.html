@@ -3131,14 +3131,21 @@
     }
 
     function läggTillErbjudande(offer) {
-      // Allow multiple instances - add as package with unique ID
-      state.offerCart.push({
-        id: "ERB-" + Date.now() + "-" + Math.random(),
-        titel: offer.title,
-        paketpris: offer.paketpris,
-        antal: 1,
-        produkter: offer.produkter || []
-      });
+      // Stack same offers - find existing or create new
+      const existingIdx = state.offerCart.findIndex(o => o.titel === offer.title);
+      if (existingIdx !== -1) {
+        // Increase quantity of existing offer
+        state.offerCart[existingIdx].antal += 1;
+      } else {
+        // Add new offer
+        state.offerCart.push({
+          id: "ERB-" + offer.title.replace(/\s+/g, "-"),
+          titel: offer.title,
+          paketpris: offer.paketpris,
+          antal: 1,
+          produkter: offer.produkter || []
+        });
+      }
       renderSummary();
       // Brief confirmation
       showOfferConfirmation(offer.title, offer.paketpris);
