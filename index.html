@@ -1569,29 +1569,45 @@
       justify-content: center;
       gap: 48px;
     }
-    .ss-logga-ring {
+    .ss-logga-wrapper {
+      position: relative;
       width: 360px;
       height: 360px;
-      border-radius: 50%;
-      border: 3px solid rgba(181,155,100,0.6);
-      box-shadow: 0 2px 20px rgba(0,0,0,0.15);
       display: flex;
       align-items: center;
       justify-content: center;
-      animation: ssPulsera 5s ease-in-out infinite;
-      background: transparent;
+      animation: ssPulsera 8s ease-in-out infinite;
+    }
+    .ss-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 14px solid transparent;
+      border-top-color: #C9A84C;
+      border-bottom-color: #8B6914;
+      border-left-color: #B8942E;
+      border-right-color: #DAC06A;
+      background: conic-gradient(from 0deg,
+        #8B6914, #C9A84C, #E8D48B, #C9A84C, #8B6914, #6B4F0E, #8B6914) border-box;
+      -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 14px), #000 calc(100% - 14px));
+      mask: radial-gradient(farthest-side, transparent calc(100% - 14px), #000 calc(100% - 14px));
+      box-shadow:
+        0 0 20px rgba(201,168,76,0.2),
+        inset 0 0 20px rgba(201,168,76,0.1);
+      animation: ssRotera 25s linear infinite;
+      filter: drop-shadow(0 4px 12px rgba(0,0,0,0.3));
+    }
+    @keyframes ssRotera {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
     }
     @keyframes ssPulsera {
-      0%, 100% {
-        transform: scale(1);
-        box-shadow: 0 2px 20px rgba(0,0,0,0.15);
-      }
-      50% {
-        transform: scale(1.04);
-        box-shadow: 0 4px 30px rgba(0,0,0,0.2);
-      }
+      0%, 100% { transform: scale(1); }
+      50%      { transform: scale(1.03); }
     }
     .ss-logga {
+      position: relative;
+      z-index: 1;
       font-family: Georgia, serif;
       font-size: 128px;
       font-weight: bold;
@@ -2241,7 +2257,8 @@
   <div id="screensaver" style="display:none;">
     <div class="ss-bakgrund"></div>
     <div class="ss-innehall">
-      <div class="ss-logga-ring">
+      <div class="ss-logga-wrapper">
+        <div class="ss-ring"></div>
         <div class="ss-logga">ZH</div>
       </div>
       <p class="ss-text">Hungrig? Vi har snacks! 👋</p>
