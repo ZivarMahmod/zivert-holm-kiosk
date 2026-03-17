@@ -1191,13 +1191,13 @@
       background: rgba(255,255,255,.14);
     }
     .wish-overlay {
-      position: absolute;
+      position: fixed;
       inset: 0;
       background: rgba(0,0,0,.55);
       display: none;
       align-items: center;
       justify-content: center;
-      z-index: 40;
+      z-index: 9999;
       padding: 24px;
     }
     .wish-overlay.active {
@@ -1485,14 +1485,34 @@
     </div>
 
     <!-- MOBIL ADMIN PANEL (iframe till kiosk-admin) -->
+    <!-- MOBIL ADMIN PANEL — knappar som öppnar desktop-admin -->
     <div id="mobileAdminPanel" style="display:none;position:fixed;inset:0;z-index:90;background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);overflow:auto;">
       <div style="background:rgba(0,0,0,.5);backdrop-filter:blur(10px);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:91;border-bottom:1px solid rgba(255,255,255,.08);">
         <div style="font-size:18px;font-style:italic;color:#fff;font-family:Georgia,serif;">⚙ Admin</div>
         <button id="mobileAdminLogoutBtn" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#fff;font-family:Georgia,serif;font-size:14px;padding:8px 16px;cursor:pointer;">← Tillbaka till kiosk</button>
       </div>
-      <div style="padding:20px;color:rgba(255,255,255,.7);font-family:Georgia,serif;text-align:center;margin-top:40px;">
-        <p style="font-size:18px;">Admin-panelen är optimerad för desktop.</p>
-        <p style="font-size:14px;margin-top:8px;">Öppna kiosken på en dator för full admin-åtkomst.</p>
+      <div style="padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:12px;" id="mobileAdminGrid">
+        <button class="mobile-admin-btn" data-section="report" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:20px 12px;color:#fff;font-family:Georgia,serif;font-size:16px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;">
+          <span style="font-size:28px;">📊</span>Rapport
+        </button>
+        <button class="mobile-admin-btn" data-section="products" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:20px 12px;color:#fff;font-family:Georgia,serif;font-size:16px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;">
+          <span style="font-size:28px;">📦</span>Produkter
+        </button>
+        <button class="mobile-admin-btn" data-section="inventory" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:20px 12px;color:#fff;font-family:Georgia,serif;font-size:16px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;">
+          <span style="font-size:28px;">📦</span>Lager
+        </button>
+        <button class="mobile-admin-btn" data-section="offers" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:20px 12px;color:#fff;font-family:Georgia,serif;font-size:16px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;">
+          <span style="font-size:28px;">🏷</span>Erbjudanden
+        </button>
+        <button class="mobile-admin-btn" data-section="wishes" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:20px 12px;color:#fff;font-family:Georgia,serif;font-size:16px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;">
+          <span style="font-size:28px;">💌</span>Önskningar
+        </button>
+        <button class="mobile-admin-btn" data-section="receipts" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:20px 12px;color:#fff;font-family:Georgia,serif;font-size:16px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;">
+          <span style="font-size:28px;">🧾</span>Kvitton
+        </button>
+        <button class="mobile-admin-btn" data-section="settings" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:20px 12px;color:#fff;font-family:Georgia,serif;font-size:16px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;grid-column:1/-1;">
+          <span style="font-size:28px;">⚙</span>Inställningar
+        </button>
       </div>
     </div>
 
@@ -3200,7 +3220,19 @@
     reportLoginOverlay.addEventListener("click", e => {
       if (e.target === reportLoginOverlay) closeReportLogin();
     });
-    reportLogoutBtn.addEventListener("click", () => openOverview());
+    reportLogoutBtn.addEventListener("click", () => {
+      if (IS_MOBILE_VIEW) {
+        document.querySelector(".viewport").style.display = "none";
+        document.getElementById("mobileApp").style.display = "block";
+        document.getElementById("mobileAdminPanel").style.display = "block";
+        document.querySelector("#mobileApp > div:first-child").style.display = "none";
+        document.getElementById("mobileOverview").style.display = "none";
+        document.body.style.overflow = "auto";
+        document.body.style.background = "linear-gradient(135deg,#0f0c29,#302b63,#24243e)";
+        return;
+      }
+      openOverview();
+    });
 
     // Hamburger menu toggle
     document.getElementById("adminHamburgerBtn").addEventListener("click", () => {
@@ -3902,13 +3934,41 @@
         document.querySelector("#mobileApp > div:first-child").style.display = "flex";
         document.getElementById("mobileCategoryView").style.display = "none";
         document.getElementById("mobileOverview").style.display = "block";
+        window.scrollTo(0, 0);
       });
 
       // Mobile admin logout — tillbaka till mobilkiosk
       document.getElementById("mobileAdminLogoutBtn").addEventListener("click", () => {
         document.getElementById("mobileAdminPanel").style.display = "none";
+        document.querySelector(".viewport").style.display = "none";
+        document.getElementById("mobileApp").style.display = "block";
         document.querySelector("#mobileApp > div:first-child").style.display = "flex";
         document.getElementById("mobileOverview").style.display = "block";
+        document.body.style.overflow = "auto";
+        document.body.style.background = "linear-gradient(135deg,#0f0c29,#302b63,#24243e)";
+      });
+
+      // Mobile admin grid buttons — öppna desktop-admin i mobilvy
+      document.querySelectorAll(".mobile-admin-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const section = btn.dataset.section;
+          document.getElementById("mobileAdminPanel").style.display = "none";
+          document.getElementById("mobileApp").style.display = "none";
+          const vp = document.querySelector(".viewport");
+          vp.style.display = "block";
+          const stage = document.getElementById("stage");
+          stage.style.width = "100%";
+          stage.style.height = "auto";
+          stage.style.transform = "none";
+          stage.style.transformOrigin = "top left";
+          document.body.style.overflow = "auto";
+          openReportView(state.currentReportMode);
+          showAdminSection(section);
+          if (section === "report") renderReport(state.currentReportMode);
+          if (section === "products") renderCatalogEditor();
+          if (section === "offers") loadOffersIntoEditor();
+          if (section === "settings") initSettingsForm();
+        });
       });
     }
 
@@ -3973,6 +4033,7 @@
       document.querySelector("#mobileApp > div:first-child").style.display = "none";
       document.getElementById("mobileOverview").style.display = "none";
       document.getElementById("mobileCategoryView").style.display = "block";
+      window.scrollTo(0, 0);
       history.pushState({ view: "category", key: catKey }, "", window.location.href);
 
       const grid = document.getElementById("mobileProductGrid");
