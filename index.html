@@ -2152,7 +2152,7 @@
 
     /* ── Overview rendering ── */
     function getCategoryEmoji(key) {
-      return CATEGORY_EMOJI[key] || "📦";
+      return CATEGORY_EMOJI[key] || "🛍";
     }
     function getCategoryGradient(key) {
       return CATEGORY_GRADIENTS[key] || "linear-gradient(160deg,#3a3a5c,#24243e)";
@@ -2184,12 +2184,20 @@
     }
 
     /* ── Category / Product rendering ── */
+    const CATEGORY_EMOJIS = {
+      "dryck": "🥤",
+      "snacks": "🍫",
+      "mellanmal": "🥗",
+      "mat": "🍕"
+    };
+
     function getProductImageHtml(itemId, itemName, catKey) {
       const src = PRODUCT_IMAGES[itemId];
       if (src) {
         return `<img src="${escapeHtml(src)}" alt="${escapeHtml(itemName)}" style="height:80px;width:auto;object-fit:contain;" />`;
       }
-      return `<span class="product-fallback-emoji">${getCategoryEmoji(catKey)}</span>`;
+      const fallbackEmoji = CATEGORY_EMOJIS[catKey] || "🛍";
+      return `<span class="product-fallback-emoji">${fallbackEmoji}</span>`;
     }
     function renderCurrentCategory() {
       if (!state.currentCategory) return;
@@ -3247,13 +3255,13 @@
         const stock = (val && typeof val === "object") ? (val.stock || 0) : 0;
         const low = stock > 0 && stock < 10;
 
-        // Build <option> list for select
-        const usedNames = new Set(rows.map(r => r[0]));
-        const options = productNames.map(pn => {
-          const selected = pn === name ? "selected" : "";
-          const disabled = (pn !== name && usedNames.has(pn)) ? "disabled" : "";
-          return `<option value="${escapeHtml(pn)}" ${selected} ${disabled}>${escapeHtml(pn)}</option>`;
-        }).join("");
+        // Build <option> list from live categories
+        const currentName = name;
+        const allProductNames = [];
+        categories.forEach(cat => cat.items.forEach(item => allProductNames.push(item.name)));
+        const options = allProductNames.map(n =>
+          `<option value="${escapeHtml(n)}" ${n === currentName ? 'selected' : ''}>${escapeHtml(n)}</option>`
+        ).join("");
 
         return `
           <div class="catalog-item-row" style="margin-bottom:6px;display:grid;grid-template-columns:1fr 90px 90px 100px 40px;gap:8px;align-items:center;">
