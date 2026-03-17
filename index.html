@@ -3364,7 +3364,9 @@
         time: new Date().toISOString(),
         items: cart.map(it => ({
           categoryKey: it.categoryKey, categoryTitle: it.categoryTitle,
-          itemId: it.itemId, name: it.name, qty: it.qty, price: it.price
+          itemId: it.itemId, name: it.name, qty: it.qty, price: it.price,
+          ärErbjudande: it.ärErbjudande || false,
+          produkter: it.produkter || []
         })),
         total: cart.reduce((s, it) => s + it.sum, 0)
       });
@@ -3373,9 +3375,20 @@
       // Minska stock i inventory
       const inv = loadInventory();
       cart.forEach(item => {
-        const key = item.name;
-        if (inv[key] && typeof inv[key] === "object" && typeof inv[key].stock === "number") {
-          inv[key].stock = Math.max(0, inv[key].stock - item.qty);
+        if (item.ärErbjudande && item.produkter) {
+          // För erbjudanden: dra från varje produkt i paketet
+          item.produkter.forEach(prod => {
+            const prodKey = prod.namn;
+            if (inv[prodKey] && typeof inv[prodKey] === "object" && typeof inv[prodKey].stock === "number") {
+              inv[prodKey].stock = Math.max(0, inv[prodKey].stock - (prod.antal * item.qty));
+            }
+          });
+        } else {
+          // För vanliga varor
+          const key = item.name;
+          if (inv[key] && typeof inv[key] === "object" && typeof inv[key].stock === "number") {
+            inv[key].stock = Math.max(0, inv[key].stock - item.qty);
+          }
         }
       });
       saveInventory(inv);
