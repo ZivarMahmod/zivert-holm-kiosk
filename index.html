@@ -2525,8 +2525,14 @@
       const updates = {};
       let count = 0;
 
+      // Om receiptCounter = 0, vi är i fresh start — skipppa kvitton och rapport
+      const isFreshStart = !existingData.receiptCounter || existingData.receiptCounter === 0;
+
       // JSON keys från FB_KEY_MAP
       Object.entries(FB_KEY_MAP).forEach(([lsKey, fbPath]) => {
+        // Skippa kvitton/rapport vid fresh start
+        if (isFreshStart && (fbPath === "kvitton" || fbPath === "rapport")) return;
+
         if (existingData[fbPath] !== undefined && existingData[fbPath] !== null) return; // redan i Firebase
         const raw = localStorage.getItem(lsKey);
         if (!raw) return; // finns inte lokalt heller
