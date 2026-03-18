@@ -2481,9 +2481,34 @@
           if (Array.isArray(kvittonData)) {
             localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(kvittonData));
           } else if (typeof kvittonData === "object") {
-            // Firebase konverterar arrayer till objekt — konvertera tillbaka
-            // Filtrera bort statusobjekt (t.ex. "ZH-2026-0029": {status: "registrerad"})
-            const entries = Object.values(kvittonData).filter(v => v && v.id);
+            // Hantera blandformat: {id} (array-format) och {kvittoNummer} (ZH-format)
+            const merged = {};
+            Object.entries(kvittonData).forEach(([key, v]) => {
+              if (!v || typeof v !== "object") return;
+              if (v.id) {
+                // Array-format — använd direkt
+                merged[v.id] = v;
+              } else if (v.kvittoNummer) {
+                // ZH-format — konvertera till lokal format
+                const id = v.kvittoNummer.split("-").pop();
+                if (!merged[id]) {
+                  merged[id] = {
+                    id,
+                    status: v.status || "registrerad",
+                    time: v.datum ? new Date(v.datum.split("-").reverse().join("-")).toISOString() : new Date().toISOString(),
+                    datum: v.datum || "", tid: v.tid || "",
+                    items: (v.produkter || []).map(p => ({ name: p.namn, qty: p.antal, price: p.prisStyck, sum: p.prisTotal })),
+                    total: v.totalSumma || 0,
+                    tagged: !!v.tagg, tagType: v.tagg || null
+                  };
+                } else {
+                  // Uppdatera bara status/tagg om entry redan finns från array-format
+                  if (v.status) merged[id].status = v.status;
+                  if (v.tagg !== undefined) { merged[id].tagged = !!v.tagg; merged[id].tagType = v.tagg || null; }
+                }
+              }
+            });
+            const entries = Object.values(merged);
             if (entries.length) {
               localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(entries));
             }
@@ -2877,6 +2902,7 @@
         // Uppdatera befintligt obekräftat kvitto → registrerad
         existing.status = "registrerad";
         localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
+        fbSyncAfterSave(RECEIPT_STORAGE_KEY);
         if (window._fbDb && !_fbSyncPaused) {
           try {
             const year = new Date(existing.time).getFullYear();
@@ -3500,6 +3526,7 @@
       if (!receipts.some(r => String(r.id) === String(receiptId))) {
         receipts.push(pendingReceipt);
         localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
+        fbSyncAfterSave(RECEIPT_STORAGE_KEY);
         if (window._fbDb && !_fbSyncPaused) {
           try {
             const kvittoNummer = `ZH-${now.getFullYear()}-${receiptId}`;
