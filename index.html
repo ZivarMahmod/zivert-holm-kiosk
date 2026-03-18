@@ -2172,6 +2172,10 @@
             <div class="pay-modal-head">
               <h3 id="payTitle">Skanna med Swish</h3>
               <p>Öppna Swish-appen och skanna QR-koden för att betala.</p>
+              <div class="receipt-countdown-wrap" style="margin-top:8px;">
+                <div class="receipt-countdown" id="payCountdown">15</div>
+                <div class="receipt-countdown-label">sek</div>
+              </div>
             </div>
             <div class="pay-qr-wrap">
               <div class="pay-qr-box">
@@ -3524,8 +3528,17 @@
       payOverlay.classList.add("active");
       payOverlay.setAttribute("aria-hidden", "false");
 
-      // Auto-close efter 15 sekunder — kvittot sparas som ej_registrerad
+      // Synlig nedräkning + auto-close efter 15 sekunder
       if (state.paymentTimer) clearTimeout(state.paymentTimer);
+      if (state.paymentInterval) clearInterval(state.paymentInterval);
+      const payCountdown = document.getElementById("payCountdown");
+      let secsLeft = 15;
+      if (payCountdown) payCountdown.textContent = secsLeft;
+      state.paymentInterval = setInterval(() => {
+        secsLeft--;
+        if (payCountdown) payCountdown.textContent = secsLeft;
+        if (secsLeft <= 0) clearInterval(state.paymentInterval);
+      }, 1000);
       state.paymentTimer = setTimeout(() => {
         closePaymentModal({ recordSaleOnClose: false });
       }, 15000);
@@ -3589,6 +3602,7 @@
     function closePaymentModal({ recordSaleOnClose = false } = {}) {
       if (recordSaleOnClose) recordSale(getCart());
       if (state.paymentTimer) clearTimeout(state.paymentTimer);
+      if (state.paymentInterval) clearInterval(state.paymentInterval);
       payOverlay.classList.remove("active");
       payOverlay.setAttribute("aria-hidden", "true");
       swishQr.innerHTML = "";
