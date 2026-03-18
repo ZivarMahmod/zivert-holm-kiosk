@@ -2428,6 +2428,9 @@
       try {
         const raw = localStorage.getItem("zivert-holm-settings-v1");
         const data = raw ? JSON.parse(raw) : {};
+        // Skicka aldrig lösenord till Firebase
+        delete data.password;
+        delete data.adminPassword;
         fbWrite(FB_SETTINGS_KEY, data);
       } catch(e) {}
     }
@@ -2466,7 +2469,11 @@
         }
         if (data.onskningar)      localStorage.setItem(WISHES_STORAGE_KEY, JSON.stringify(data.onskningar));
         if (data.taggar)          localStorage.setItem(TAGS_STORAGE_KEY, JSON.stringify(data.taggar));
-        if (data.installningar)   localStorage.setItem("zivert-holm-settings-v1", JSON.stringify(data.installningar));
+        if (data.installningar) {
+          const s = data.installningar;
+          delete s.password; delete s.adminPassword;
+          localStorage.setItem("zivert-holm-settings-v1", JSON.stringify(s));
+        }
         if (data.receiptCounter)  localStorage.setItem(RECEIPT_COUNTER_KEY, String(data.receiptCounter));
         if (data["bubblainställningar"]) localStorage.setItem(BUBBLA_STORAGE_KEY, JSON.stringify(data["bubblainställningar"]));
         if (data["valjKnappInstallningar"]) localStorage.setItem(VAJL_KNAPP_STORAGE_KEY, JSON.stringify(data["valjKnappInstallningar"]));
