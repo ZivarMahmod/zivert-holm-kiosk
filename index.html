@@ -3656,6 +3656,7 @@
     function tryReportLogin() {
       if (reportPasswordInput.value === getEffectivePassword()) {
         closeReportLogin();
+        state.currentAdminSection = "rapport";
         openReportView("7days");
       } else {
         reportLoginError.textContent = "Fel lösenord.";
@@ -5542,6 +5543,7 @@
           document.getElementById("mobileCategoryView").style.display = "none";
           document.getElementById("mobileAdminPanel").style.display = "block";
           history.pushState({ view: "admin" }, "", window.location.href);
+          openMobileAdminSection("report");
         } else {
           document.getElementById("mobileAdminPwError").textContent = "Fel lösenord";
         }
