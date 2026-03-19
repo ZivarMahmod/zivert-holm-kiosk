@@ -2418,6 +2418,33 @@
       } catch(e) { console.warn("Firebase write failed:", fbPath, e); }
     }
 
+    // Fördröjd Firebase-push för kvitton (10 sek) — admin är källan, Firebase är backup
+    const _pendingReceiptPush = {};
+    function scheduleReceiptFbPush(receiptId, year) {
+      const key = `${year}-${receiptId}`;
+      if (_pendingReceiptPush[key]) clearTimeout(_pendingReceiptPush[key]);
+      _pendingReceiptPush[key] = setTimeout(async () => {
+        delete _pendingReceiptPush[key];
+        if (!window._fbDb) return;
+        const receipts = loadReceipts();
+        const r = receipts.find(rc => String(rc.id) === String(receiptId));
+        if (!r) return;
+        const kvittoNummer = `ZH-${year}-${receiptId}`;
+        await fbWrite("kvitton/" + kvittoNummer, {
+          kvittoNummer,
+          datum: r.datum || "",
+          tid: r.tid || "",
+          betalning: "Swish",
+          status: r.status || "registrerad",
+          produkter: (r.items || []).map(i => ({ namn: i.name, antal: i.qty, prisStyck: i.price, prisTotal: i.sum })),
+          totalSumma: r.total || 0,
+          tagg: r.tagType || null
+        });
+        // Synka även försäljningsdata (rapport) till Firebase
+        fbSyncAfterSave(SALES_STORAGE_KEY);
+      }, 10000);
+    }
+
     function fbSyncAfterSave(localStorageKey) {
       if (!window._fbDb || _fbSyncPaused) return;
       const fbPath = FB_KEY_MAP[localStorageKey];
@@ -2595,8 +2622,10 @@
     }
 
     /* ── Realtime listener (kiosk mode) ── */
+    let _realtimeSyncStarted = false;
     function startRealtimeSync() {
-      if (!window._fbDb) return;
+      if (!window._fbDb || _realtimeSyncStarted) return;
+      _realtimeSyncStarted = true;
       window._fbDb.ref("/").on("value", (snap) => {
         if (!snap.exists()) return;
         const data = snap.val();
@@ -2616,37 +2645,32 @@
         if (data.receiptCounter != null) {
           localStorage.setItem(RECEIPT_COUNTER_KEY, String(data.receiptCounter));
         }
-        // Synka kvitton — hantera både array och objekt-format
-        if (data.kvitton) {
-          if (Array.isArray(data.kvitton)) {
-            localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(data.kvitton));
-          } else if (typeof data.kvitton === "object") {
-            // Objekt-format: merga in statusändringar och nya kvitton till lokala arrayen
-            const localReceipts = loadReceipts();
-            const fbEntries = Object.values(data.kvitton);
-            fbEntries.forEach(fb => {
-              if (!fb || !fb.kvittoNummer) return;
-              const id = fb.kvittoNummer.split("-").pop(); // "ZH-2026-0003" → "0003"
-              const local = localReceipts.find(r => String(r.id) === id);
-              if (local) {
-                // Uppdatera status och tagg från Firebase
-                if (fb.status) local.status = fb.status;
-                if (fb.tagg !== undefined) { local.tagged = !!fb.tagg; local.tagType = fb.tagg; }
-              } else {
-                // Nytt kvitto från annan enhet — lägg till lokalt
-                localReceipts.push({
-                  id,
-                  status: fb.status || "registrerad",
-                  time: fb.datum ? new Date(fb.datum.split("-").reverse().join("-")).toISOString() : new Date().toISOString(),
-                  datum: fb.datum || "", tid: fb.tid || "",
-                  items: (fb.produkter || []).map(p => ({ name: p.namn, qty: p.antal, price: p.prisStyck, sum: p.prisTotal })),
-                  total: fb.totalSumma || 0,
-                  tagged: !!fb.tagg, tagType: fb.tagg || null
-                });
-              }
-            });
-            localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(localReceipts));
-          }
+        // Kvitton: Firebase är backup — lokal data är källan.
+        // Firebase får bara lägga till kvitton som INTE finns lokalt (t.ex. från annan enhet).
+        // Lokala kvitton skrivs aldrig över av Firebase.
+        if (data.kvitton && typeof data.kvitton === "object" && !Array.isArray(data.kvitton)) {
+          const localReceipts = loadReceipts();
+          const fbEntries = Object.values(data.kvitton);
+          let changed = false;
+          fbEntries.forEach(fb => {
+            if (!fb || !fb.kvittoNummer) return;
+            const id = fb.kvittoNummer.split("-").pop();
+            const exists = localReceipts.some(r => String(r.id) === id);
+            if (!exists) {
+              // Nytt kvitto från Firebase som inte finns lokalt — lägg till
+              localReceipts.push({
+                id,
+                status: fb.status || "registrerad",
+                time: fb.datum ? new Date(fb.datum.split("-").reverse().join("-")).toISOString() : new Date().toISOString(),
+                datum: fb.datum || "", tid: fb.tid || "",
+                items: (fb.produkter || []).map(p => ({ name: p.namn, qty: p.antal, price: p.prisStyck, sum: p.prisTotal })),
+                total: fb.totalSumma || 0,
+                tagged: !!fb.tagg, tagType: fb.tagg || null
+              });
+              changed = true;
+            }
+          });
+          if (changed) localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(localReceipts));
         }
         if (data.installningar) {
           const s = data.installningar;
@@ -2679,6 +2703,17 @@
             renderMobileOffers();
           } catch(e) {}
         }
+        // Re-render admin-vyer om de är aktiva
+        try {
+          const reportSection = document.getElementById("adminSectionReport");
+          if (reportSection && reportSection.classList.contains("active")) {
+            renderReport(state.currentReportMode);
+          }
+          const receiptsSection = document.getElementById("adminSectionReceipts");
+          if (receiptsSection && receiptsSection.classList.contains("active")) {
+            renderReceiptsAdmin();
+          }
+        } catch(e) {}
       });
     }
 
@@ -2903,14 +2938,9 @@
         // Uppdatera befintligt obekräftat kvitto → registrerad
         existing.status = "registrerad";
         localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-        fbSyncAfterSave(RECEIPT_STORAGE_KEY);
-        if (window._fbDb && !_fbSyncPaused) {
-          try {
-            const year = new Date(existing.time).getFullYear();
-            const kvittoNummer = `ZH-${year}-${receiptId}`;
-            fbWrite("kvitton/" + kvittoNummer + "/status", "registrerad");
-          } catch(e) { console.warn("Kvitto Firebase-fel:", e); }
-        }
+        // Schemalägg fördröjd push till Firebase (10 sek) — admin är källan
+        const year = new Date(existing.time).getFullYear();
+        scheduleReceiptFbPush(receiptId, year);
         return;
       }
 
@@ -2931,17 +2961,7 @@
       };
       receipts.push(receipt);
       localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-
-      if (window._fbDb && !_fbSyncPaused) {
-        try {
-          const kvittoNummer = `ZH-${now.getFullYear()}-${receiptId}`;
-          await fbWrite("kvitton/" + kvittoNummer, {
-            kvittoNummer, datum, tid, betalning: "Swish", status: "registrerad",
-            produkter: cart.map(i => ({ namn: i.name, antal: i.qty, prisStyck: i.price, prisTotal: i.sum })),
-            totalSumma: total, tagg: null
-          });
-        } catch(e) { console.warn("Kvitto Firebase-fel:", e); }
-      }
+      scheduleReceiptFbPush(receiptId, now.getFullYear());
     }
 
     /* ── Inventory ── */
@@ -3527,17 +3547,8 @@
       if (!receipts.some(r => String(r.id) === String(receiptId))) {
         receipts.push(pendingReceipt);
         localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-        fbSyncAfterSave(RECEIPT_STORAGE_KEY);
-        if (window._fbDb && !_fbSyncPaused) {
-          try {
-            const kvittoNummer = `ZH-${now.getFullYear()}-${receiptId}`;
-            await fbWrite("kvitton/" + kvittoNummer, {
-              kvittoNummer, datum, tid, betalning: "Swish", status: "ej_registrerad",
-              produkter: cart.map(i => ({ namn: i.name, antal: i.qty, prisStyck: i.price, prisTotal: i.sum })),
-              totalSumma: total, tagg: null
-            });
-          } catch(e) { console.warn("Kvitto Firebase-fel:", e); }
-        }
+        // Schemalägg fördröjd push till Firebase (10 sek) — admin är källan
+        scheduleReceiptFbPush(receiptId, now.getFullYear());
       }
 
       const message = buildSwishMessage(totalItems, receiptId);
@@ -3584,10 +3595,11 @@
       localStorage.setItem(SALES_STORAGE_KEY, JSON.stringify(sales));
       fbSyncAfterSave(SALES_STORAGE_KEY);
     }
-    function recordSale(cart) {
+    function recordSale(cart, receiptId) {
       if (!cart.length) return;
       const sales = loadSales();
       sales.push({
+        receiptId: receiptId ? String(receiptId) : null,
         time: new Date().toISOString(),
         items: cart.map(it => ({
           categoryKey: it.categoryKey, categoryTitle: it.categoryTitle,
@@ -3621,6 +3633,34 @@
       saveInventory(inv);
     }
 
+    // Återställ försäljning och stock när ett kvitto raderas
+    function unrecordSale(receiptId) {
+      const sales = loadSales();
+      const idx = sales.findIndex(s => s.receiptId === String(receiptId));
+      if (idx === -1) return;
+      const sale = sales[idx];
+      sales.splice(idx, 1);
+      saveSales(sales);
+      // Återställ stock
+      const inv = loadInventory();
+      (sale.items || []).forEach(item => {
+        if (item.ärErbjudande && item.produkter) {
+          item.produkter.forEach(prod => {
+            const prodKey = prod.namn;
+            if (inv[prodKey] && typeof inv[prodKey] === "object" && typeof inv[prodKey].stock === "number") {
+              inv[prodKey].stock += (prod.antal * item.qty);
+            }
+          });
+        } else {
+          const key = item.name;
+          if (inv[key] && typeof inv[key] === "object" && typeof inv[key].stock === "number") {
+            inv[key].stock += item.qty;
+          }
+        }
+      });
+      saveInventory(inv);
+    }
+
     function clearCartState() {
       state.qty = {};
       state.offerCart = [];
@@ -3631,6 +3671,21 @@
       if (recordSaleOnClose) recordSale(getCart());
       if (state.paymentTimer) clearTimeout(state.paymentTimer);
       if (state.paymentInterval) clearInterval(state.paymentInterval);
+      // Ta bort kvittot om det aldrig registrerades (avbruten eller timeout)
+      if (state.currentReceiptId) {
+        const receipts = loadReceipts();
+        const idx = receipts.findIndex(r => String(r.id) === String(state.currentReceiptId) && r.status === "ej_registrerad");
+        if (idx !== -1) {
+          const [removed] = receipts.splice(idx, 1);
+          localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
+          if (window._fbDb) {
+            const year = new Date(removed.time).getFullYear();
+            window._fbDb.ref(`kvitton/ZH-${year}-${state.currentReceiptId}`).remove().catch(() => {});
+          }
+        }
+        state.currentReceiptId = null;
+        state.currentCart = [];
+      }
       payOverlay.classList.remove("active");
       payOverlay.setAttribute("aria-hidden", "true");
       swishQr.innerHTML = "";
@@ -4548,14 +4603,14 @@
       const cart = getCart();
       const total = cart.reduce((s,i) => s + i.sum, 0);
       saveReceipt(state.currentReceiptId, cart, total);
-      recordSale(cart);
+      recordSale(cart, state.currentReceiptId);
       closePaymentModal({ recordSaleOnClose: false });
     });
     document.getElementById("payReceiptBtn").addEventListener("click", () => {
       const cart = getCart();
       const total = cart.reduce((s,i) => s + i.sum, 0);
       saveReceipt(state.currentReceiptId, cart, total);
-      recordSale(cart);
+      recordSale(cart, state.currentReceiptId);
       closePaymentModal({ recordSaleOnClose: false });
       showReceipt();
     });
@@ -5037,8 +5092,8 @@
           if (!r) return;
           r.status = "registrerad";
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-          // Registrera försäljningen
-          recordSale(r.items.map(i => ({ ...i, categoryKey: i.categoryKey || "", categoryTitle: i.categoryTitle || "", itemId: i.itemId || "", sum: i.sum || i.qty * i.price })));
+          // Registrera försäljningen med kvitto-ID
+          recordSale(r.items.map(i => ({ ...i, categoryKey: i.categoryKey || "", categoryTitle: i.categoryTitle || "", itemId: i.itemId || "", sum: i.sum || i.qty * i.price })), r.id);
           if (window._fbDb && !_fbSyncPaused) {
             const year = new Date(r.time).getFullYear();
             const kvittoNummer = `ZH-${year}-${receiptId}`;
@@ -5164,10 +5219,17 @@
             return;
           }
           closeGlobalModal();
+          // Återställ försäljning och stock
+          unrecordSale(receiptId);
+          // Ta bort kvittot
           let receipts = loadReceipts();
+          const deleted = receipts.find(r => String(r.id) === String(receiptId));
           receipts = receipts.filter(r => String(r.id) !== String(receiptId));
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-          fbSyncAfterSave(RECEIPT_STORAGE_KEY);
+          if (window._fbDb && deleted) {
+            const year = new Date(deleted.time).getFullYear();
+            window._fbDb.ref(`kvitton/ZH-${year}-${receiptId}`).remove().catch(() => {});
+          }
           renderReceiptsAdmin();
         });
       });
@@ -5187,9 +5249,17 @@
             return;
           }
           closeGlobalModal();
+          const toDelete = receipts.filter(r => r.tagType === tagId);
+          // Återställ försäljning och stock för alla raderade
+          toDelete.forEach(r => unrecordSale(r.id));
           const filtered = receipts.filter(r => r.tagType !== tagId);
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(filtered));
-          fbSyncAfterSave(RECEIPT_STORAGE_KEY);
+          if (window._fbDb) {
+            toDelete.forEach(r => {
+              const year = new Date(r.time).getFullYear();
+              window._fbDb.ref(`kvitton/ZH-${year}-${r.id}`).remove().catch(() => {});
+            });
+          }
           renderReceiptsAdmin();
         });
       });
@@ -6142,7 +6212,7 @@
               r.status = "registrerad";
               localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
               fbSyncAfterSave(RECEIPT_STORAGE_KEY);
-              recordSale(r.items.map(i => ({ ...i, categoryKey: i.categoryKey || "", categoryTitle: i.categoryTitle || "", itemId: i.itemId || "", sum: i.sum || i.qty * i.price })));
+              recordSale(r.items.map(i => ({ ...i, categoryKey: i.categoryKey || "", categoryTitle: i.categoryTitle || "", itemId: i.itemId || "", sum: i.sum || i.qty * i.price })), r.id);
               if (window._fbDb && !_fbSyncPaused) {
                 const year = new Date(r.time).getFullYear();
                 const kvittoNummer = `ZH-${year}-${receiptId}`;
@@ -6189,10 +6259,16 @@
               const receiptId = btn.dataset.receipt;
               const pw = await showGlobalModal({ title: "Lösenord", subtitle: `Radera kvitto #${receiptId}?`, type: "password", confirmLabel: "Radera" });
               if (pw !== getReceiptDeletePassword()) return;
+              // Återställ försäljning och stock
+              unrecordSale(receiptId);
               let receipts = loadReceipts();
+              const deleted = receipts.find(r => String(r.id) === String(receiptId));
               receipts = receipts.filter(r => String(r.id) !== String(receiptId));
               localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-              fbSyncAfterSave(RECEIPT_STORAGE_KEY);
+              if (window._fbDb && deleted) {
+                const year = new Date(deleted.time).getFullYear();
+                window._fbDb.ref(`kvitton/ZH-${year}-${receiptId}`).remove().catch(() => {});
+              }
               openMobileAdminSection("receipts");
             });
           });
@@ -6206,9 +6282,17 @@
               const count = receipts.filter(r => r.tagType === tagId).length;
               const pw = await showGlobalModal({ title: "Lösenord", subtitle: `Radera ${count} kvitton med taggen "${tagLabel}"?`, type: "password", confirmLabel: "Radera alla" });
               if (pw !== getReceiptDeletePassword()) return;
+              const toDelete = receipts.filter(r => r.tagType === tagId);
+              // Återställ försäljning och stock för alla raderade
+              toDelete.forEach(r => unrecordSale(r.id));
               const filtered = receipts.filter(r => r.tagType !== tagId);
               localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(filtered));
-              fbSyncAfterSave(RECEIPT_STORAGE_KEY);
+              if (window._fbDb) {
+                toDelete.forEach(r => {
+                  const year = new Date(r.time).getFullYear();
+                  window._fbDb.ref(`kvitton/ZH-${year}-${r.id}`).remove().catch(() => {});
+                });
+              }
               openMobileAdminSection("receipts");
             });
           });
