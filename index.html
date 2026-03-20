@@ -2400,44 +2400,54 @@
       return localStorage.getItem(RENSA_PW_KEY) || DEFAULT_RENSA_PW;
     }
 
-    /* ── API-based sync layer (reads from kiosk-config API, writes to Firestore) ── */
+    /* ── Firestore sync — zivert-holm är källan för all data ── */
     let _fbReady = false;
     let _fbSyncPaused = false;
+    const FS_CONFIG_DOC = "zivert-holm";
 
-    // Stubs: old Realtime Database sync functions — no longer needed, admin portal is the source of truth
-    function fbWrite(fbPath, data) { /* no-op — old RTDB write removed */ }
-    function fbSyncAfterSave(localStorageKey) { /* no-op */ }
-    function fbSyncSettings() { /* no-op */ }
-    function fbSyncPlain(localStorageKey) { /* no-op */ }
-
-    // Write receipt to new Firestore
-    const _pendingReceiptPush = {};
-    function scheduleReceiptFbPush(receiptId, year) {
-      const key = `${year}-${receiptId}`;
-      if (_pendingReceiptPush[key]) clearTimeout(_pendingReceiptPush[key]);
-      _pendingReceiptPush[key] = setTimeout(async () => {
-        delete _pendingReceiptPush[key];
-        if (!window._firestoreDb) return;
-        const receipts = loadReceipts();
-        const r = receipts.find(rc => String(rc.id) === String(receiptId));
-        if (!r) return;
-        const prefix = (loadSettings().receiptPrefix) || "ZH";
-        const kvittoNummer = `${prefix}-${year}-${receiptId}`;
-        try {
-          await window._firestoreDb.collection("receipts").doc(kvittoNummer).set({
-            kvittoNummer,
-            datum: r.datum || "",
-            tid: r.tid || "",
-            betalning: "Swish",
-            status: r.status || "registrerad",
-            produkter: (r.items || []).map(i => ({ namn: i.name, antal: i.qty, prisStyck: i.price, prisTotal: i.sum })),
-            totalSumma: r.total || 0,
-            tagg: r.tagType || null,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
-        } catch(e) { console.warn("Firestore receipt write failed:", e); }
-      }, 10000);
+    // Spara config-data (katalog, lager, erbjudanden, inställningar) till Firestore
+    function fsSyncConfig() {
+      if (!window._firestoreDb || _fbSyncPaused) return;
+      try {
+        const catalog  = JSON.parse(localStorage.getItem(CATALOG_STORAGE_KEY)  || "[]");
+        const inventory= JSON.parse(localStorage.getItem(INVENTORY_STORAGE_KEY)|| "{}");
+        const offers   = JSON.parse(localStorage.getItem(OFFERS_STORAGE_KEY)   || "[]");
+        const tags     = JSON.parse(localStorage.getItem(TAGS_STORAGE_KEY)     || "[]");
+        const settings = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}");
+        delete settings.password; delete settings.adminPassword;
+        window._firestoreDb.collection("config").doc(FS_CONFIG_DOC).set(
+          { catalog, inventory, offers, tags, settings },
+          { merge: true }
+        ).catch(e => console.warn("Firestore config write failed:", e));
+      } catch(e) {}
     }
+
+    // Spara ett kvitto till Firestore direkt
+    function scheduleReceiptFbPush(receiptId, year) {
+      if (!window._firestoreDb) return;
+      const receipts = loadReceipts();
+      const r = receipts.find(rc => String(rc.id) === String(receiptId));
+      if (!r) return;
+      const prefix = (loadSettings().receiptPrefix) || "ZH";
+      const kvittoNummer = `${prefix}-${year}-${receiptId}`;
+      window._firestoreDb.collection("receipts").doc(kvittoNummer).set({
+        kvittoNummer,
+        datum: r.datum || "",
+        tid: r.tid || "",
+        betalning: "Swish",
+        status: r.status || "registrerad",
+        produkter: (r.items || []).map(i => ({ namn: i.name, antal: i.qty, prisStyck: i.price, prisTotal: i.sum })),
+        totalSumma: r.total || 0,
+        tagg: r.tagType || null,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      }).catch(e => console.warn("Firestore receipt write failed:", e));
+    }
+
+    // Gamla stubs (används fortfarande av saveCatalog etc.)
+    function fbWrite() {}
+    function fbSyncAfterSave() { fsSyncConfig(); }
+    function fbSyncSettings() { fsSyncConfig(); }
+    function fbSyncPlain() {}
 
     /* ── Firestore real-time lyssnare för kvitton ── */
     let _firestoreUnsubscribe = null;
@@ -2483,6 +2493,64 @@
             if (receiptsSection && receiptsSection.classList.contains("active")) renderReceiptsAdmin();
           } catch(e) {}
         }, (err) => { console.warn("Firestore listener error:", err); });
+    }
+
+    // Lyssnare för config (katalog, lager, erbjudanden, inställningar)
+    let _fsConfigUnsubscribe = null;
+    function startFirestoreConfigListener() {
+      if (_fsConfigUnsubscribe || !window._firestoreDb) return;
+      _fsConfigUnsubscribe = window._firestoreDb
+        .collection("config").doc(FS_CONFIG_DOC)
+        .onSnapshot((doc) => {
+          if (!doc.exists) return;
+          _fbSyncPaused = true;
+          const d = doc.data();
+          if (d.catalog)   localStorage.setItem(CATALOG_STORAGE_KEY,   JSON.stringify(d.catalog));
+          if (d.inventory) localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(d.inventory));
+          if (d.offers)    localStorage.setItem(OFFERS_STORAGE_KEY,     JSON.stringify(d.offers));
+          if (d.tags)      localStorage.setItem(TAGS_STORAGE_KEY,       JSON.stringify(d.tags));
+          if (d.settings) {
+            const localS = (() => { try { return JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY)||"{}"); } catch(e){return{};} })();
+            const merged = { ...d.settings };
+            if (localS.password)      merged.password = localS.password;
+            if (localS.adminPassword) merged.adminPassword = localS.adminPassword;
+            localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(merged));
+          }
+          _fbSyncPaused = false;
+          // Re-render kiosk
+          try {
+            categories = loadCatalog();
+            if (!IS_MOBILE_VIEW) { renderOverview(); renderCurrentCategory(); renderSummary(); }
+            else { renderMobileOverview(); renderMobileOffers(); }
+          } catch(e) {}
+        }, (err) => { console.warn("Firestore config listener error:", err); });
+    }
+
+    // Ladda från Firestore vid start
+    async function loadFromFirestore() {
+      if (!window._firestoreDb) return;
+      try {
+        const doc = await Promise.race([
+          window._firestoreDb.collection("config").doc(FS_CONFIG_DOC).get(),
+          new Promise((_, r) => setTimeout(() => r(new Error("timeout")), 4000))
+        ]);
+        if (doc.exists) {
+          _fbSyncPaused = true;
+          const d = doc.data();
+          if (d.catalog)   localStorage.setItem(CATALOG_STORAGE_KEY,   JSON.stringify(d.catalog));
+          if (d.inventory) localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(d.inventory));
+          if (d.offers)    localStorage.setItem(OFFERS_STORAGE_KEY,     JSON.stringify(d.offers));
+          if (d.tags)      localStorage.setItem(TAGS_STORAGE_KEY,       JSON.stringify(d.tags));
+          if (d.settings) {
+            const localS = (() => { try { return JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY)||"{}"); } catch(e){return{};} })();
+            const merged = { ...d.settings };
+            if (localS.password)      merged.password = localS.password;
+            if (localS.adminPassword) merged.adminPassword = localS.adminPassword;
+            localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(merged));
+          }
+          _fbSyncPaused = false;
+        }
+      } catch(e) { console.warn("Firestore startup load failed, using localStorage:", e.message); }
     }
 
     const DEFAULT_TAGS = [
@@ -6367,18 +6435,20 @@
 
     /* ── Bootstrap ── */
     async function bootstrap() {
-      // 1. Ladda kategori-data från localStorage
+      // 1. Hämta senaste data från Firestore (4s timeout, fallback till localStorage)
+      await loadFromFirestore();
       _fbReady = true;
-      categories = loadCatalog();
 
-      // 2. Rendera
+      // 2. Ladda katalog och rendera
+      categories = loadCatalog();
       cleanupQtyState();
       renderOverview();
       renderSummary();
       openOverview();
 
-      // 3. Starta Firestore real-time lyssnare för kvitton
+      // 3. Starta Firestore real-time lyssnare
       startFirestoreReceiptListener();
+      startFirestoreConfigListener();
 
       if (IS_MOBILE_VIEW) {
         document.getElementById("mobileApp").style.display = "block";
