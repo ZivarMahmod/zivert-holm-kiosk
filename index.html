@@ -2482,7 +2482,9 @@
 
       // Offers: API returns [{id, title, description, price, products, isMain}]
       // Kiosk expects [{type, title, desc, paketpris, produkter:[{namn, antal, prisInfo}]}]
-      if (data.offers && Array.isArray(data.offers)) {
+      // Skippa API-offers om användaren sparat lokalt de senaste 10 minuterna
+      const offersSavedRecently = (Date.now() - (_localOffersSavedAt || 0)) < 10 * 60 * 1000;
+      if (!offersSavedRecently && data.offers && Array.isArray(data.offers)) {
         const offers = data.offers.map(o => ({
           type: o.isMain ? "VECKANS DEAL" : "ERBJUDANDE",
           title: o.title || "",
@@ -2905,9 +2907,16 @@
         return Array.isArray(parsed) ? parsed : JSON.parse(JSON.stringify(DEFAULT_OFFERS));
       } catch (e) { return JSON.parse(JSON.stringify(DEFAULT_OFFERS)); }
     }
+    let _localOffersSavedAt = 0;
     function saveOffers(offers) {
       localStorage.setItem(OFFERS_STORAGE_KEY, JSON.stringify(offers));
-      fbSyncAfterSave(OFFERS_STORAGE_KEY);
+      _localOffersSavedAt = Date.now();
+      // Spara till Firestore så det överlever omstarter
+      if (window._firestoreDb) {
+        window._firestoreDb.collection("kioskConfig").doc(KIOSK_USER_ID).set(
+          { offers }, { merge: true }
+        ).catch(e => console.warn("Firestore offers write failed:", e));
+      }
     }
 
     /* ── Bubbla-inställningar ── */
