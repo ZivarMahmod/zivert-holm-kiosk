@@ -2422,25 +2422,31 @@
       } catch(e) {}
     }
 
-    // Spara ett kvitto till Firestore direkt
+    // Spara kvitto till Firestore efter 10 sek — admin har redan fått det via localStorage
+    const _pendingReceiptPush = {};
     function scheduleReceiptFbPush(receiptId, year) {
-      if (!window._firestoreDb) return;
-      const receipts = loadReceipts();
-      const r = receipts.find(rc => String(rc.id) === String(receiptId));
-      if (!r) return;
-      const prefix = (loadSettings().receiptPrefix) || "ZH";
-      const kvittoNummer = `${prefix}-${year}-${receiptId}`;
-      window._firestoreDb.collection("receipts").doc(kvittoNummer).set({
-        kvittoNummer,
-        datum: r.datum || "",
-        tid: r.tid || "",
-        betalning: "Swish",
-        status: r.status || "registrerad",
-        produkter: (r.items || []).map(i => ({ namn: i.name, antal: i.qty, prisStyck: i.price, prisTotal: i.sum })),
-        totalSumma: r.total || 0,
-        tagg: r.tagType || null,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      }).catch(e => console.warn("Firestore receipt write failed:", e));
+      const key = `${year}-${receiptId}`;
+      if (_pendingReceiptPush[key]) clearTimeout(_pendingReceiptPush[key]);
+      _pendingReceiptPush[key] = setTimeout(() => {
+        delete _pendingReceiptPush[key];
+        if (!window._firestoreDb) return;
+        const receipts = loadReceipts();
+        const r = receipts.find(rc => String(rc.id) === String(receiptId));
+        if (!r) return;
+        const prefix = (loadSettings().receiptPrefix) || "ZH";
+        const kvittoNummer = `${prefix}-${year}-${receiptId}`;
+        window._firestoreDb.collection("receipts").doc(kvittoNummer).set({
+          kvittoNummer,
+          datum: r.datum || "",
+          tid: r.tid || "",
+          betalning: "Swish",
+          status: r.status || "registrerad",
+          produkter: (r.items || []).map(i => ({ namn: i.name, antal: i.qty, prisStyck: i.price, prisTotal: i.sum })),
+          totalSumma: r.total || 0,
+          tagg: r.tagType || null,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        }).catch(e => console.warn("Firestore receipt write failed:", e));
+      }, 10000);
     }
 
     // Gamla stubs (används fortfarande av saveCatalog etc.)
@@ -6435,8 +6441,9 @@
 
     /* ── Bootstrap ── */
     async function bootstrap() {
-      // 1. Hämta senaste data från Firestore (4s timeout, fallback till localStorage)
-      await loadFromFirestore();
+      // 1. Om localStorage är tomt (ny enhet) — ladda från Firestore som backup
+      const hasLocalData = !!localStorage.getItem(CATALOG_STORAGE_KEY);
+      if (!hasLocalData) await loadFromFirestore();
       _fbReady = true;
 
       // 2. Ladda katalog och rendera
@@ -6446,9 +6453,8 @@
       renderSummary();
       openOverview();
 
-      // 3. Starta Firestore real-time lyssnare
+      // 3. Starta Firestore kvitto-lyssnare (backup — lägger bara till kvitton som saknas lokalt)
       startFirestoreReceiptListener();
-      startFirestoreConfigListener();
 
       if (IS_MOBILE_VIEW) {
         document.getElementById("mobileApp").style.display = "block";
