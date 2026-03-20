@@ -2345,23 +2345,23 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" onerror="console.error('QRCode CDN failed to load')"></script>
-  <!-- Firebase SDK (compat) — Firestore for writes -->
+  <!-- Firebase SDK (compat) — zivert-holm -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script>
-    /* ── Firebase init — NEW project (admin-portal-v2) ── */
+    /* ── Firebase init — zivert-holm ── */
     const _firebaseApp = firebase.initializeApp({
-      apiKey: "AIzaSyA78uiP7gjCydAEFV9-E9x8XP486Bq5gg8",
-      authDomain: "admin-portal-v2-d140b.firebaseapp.com",
-      projectId: "admin-portal-v2-d140b",
-      storageBucket: "admin-portal-v2-d140b.firebasestorage.app",
-      messagingSenderId: "79971916209",
-      appId: "1:79971916209:web:5f80ee15d2d2b207d80590"
+      apiKey: "AIzaSyCjLMN3qVOyn0M5Eu7P0EtA9rnqzAto5Zw",
+      authDomain: "zivert-holm.firebaseapp.com",
+      databaseURL: "https://zivert-holm-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "zivert-holm",
+      storageBucket: "zivert-holm.firebasestorage.app",
+      messagingSenderId: "1078871076184",
+      appId: "1:1078871076184:web:573fc9d2d7ddb621fa892d",
+      measurementId: "G-GSJ9K6DDY6"
     });
     const _firestoreDb = firebase.firestore();
     window._firestoreDb = _firestoreDb;
-    const KIOSK_USER_ID = "SL14WNDFtnSKJQotNZrGmPEjlPi1";
-    const KIOSK_CONFIG_API = `https://kiosk-admin-zivarmahmods-projects.vercel.app/api/kiosk-config?userId=${KIOSK_USER_ID}`;
   </script>
 
   <script>
@@ -2433,141 +2433,18 @@
             produkter: (r.items || []).map(i => ({ namn: i.name, antal: i.qty, prisStyck: i.price, prisTotal: i.sum })),
             totalSumma: r.total || 0,
             tagg: r.tagType || null,
-            userId: KIOSK_USER_ID,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
           });
         } catch(e) { console.warn("Firestore receipt write failed:", e); }
       }, 10000);
     }
 
-    /* ── Load from API at startup ── */
-    async function loadFromApi() {
-      try {
-        const resp = await Promise.race([
-          fetch(KIOSK_CONFIG_API),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000))
-        ]);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const data = await resp.json();
-        applyApiData(data);
-        console.log("API data loaded from admin portal.");
-        return true;
-      } catch(e) {
-        console.warn("API ej tillgänglig, använder localStorage:", e.message);
-        return false;
-      }
-    }
-
-    function applyApiData(data) {
-      _fbSyncPaused = true;
-
-      // Catalog: API returns [{key, title, subtitle, emoji, color, items:[{id, name, price, ...}]}]
-      // The kiosk expects the same format — map directly
-      if (data.catalog && Array.isArray(data.catalog)) {
-        const catalog = data.catalog.map(cat => ({
-          key: cat.key,
-          title: cat.title,
-          subtitle: cat.subtitle || "",
-          emoji: cat.emoji || "",
-          color: cat.color || "",
-          items: (cat.items || []).map(item => ({
-            id: item.id,
-            name: item.name,
-            price: item.price || 0,
-            note: item.note || undefined
-          }))
-        }));
-        localStorage.setItem(CATALOG_STORAGE_KEY, JSON.stringify(catalog));
-      }
-
-      // Offers: API returns [{id, title, description, price, products, isMain}]
-      // Kiosk expects [{type, title, desc, paketpris, produkter:[{namn, antal, prisInfo}]}]
-      // Skippa API-offers om användaren sparat lokalt de senaste 10 minuterna
-      const offersSavedRecently = (Date.now() - (_localOffersSavedAt || 0)) < 10 * 60 * 1000;
-      if (!offersSavedRecently && data.offers && Array.isArray(data.offers)) {
-        const offers = data.offers.map(o => ({
-          type: o.isMain ? "VECKANS DEAL" : "ERBJUDANDE",
-          title: o.title || "",
-          desc: o.description || "",
-          paketpris: o.price || 0,
-          produkter: (o.products || []).map(p => ({
-            namn: typeof p === "string" ? p : (p.name || p.namn || ""),
-            antal: (typeof p === "object" ? p.quantity || p.antal : 1) || 1,
-            prisInfo: ""
-          }))
-        }));
-        localStorage.setItem(OFFERS_STORAGE_KEY, JSON.stringify(offers));
-      }
-
-      // Config/settings: map API config to local settings format
-      if (data.config) {
-        const c = data.config;
-        const localSettings = (() => { try { return JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}"); } catch(e) { return {}; } })();
-        // Preserve local passwords
-        const pw = localSettings.password;
-        const adminPw = localSettings.adminPassword;
-        const settings = {
-          ...localSettings,
-          swishNumber: c.swishNumber || localSettings.swishNumber || "",
-          storeName: c.storeName || "",
-          receiptPrefix: c.receiptPrefix || "ZH",
-          primaryColor: c.primaryColor || "",
-          secondaryColor: c.secondaryColor || "",
-          accentColor: c.accentColor || "",
-          bubbleText1: c.bubbleText1 || "",
-          bubbleText2: c.bubbleText2 || "",
-          bubbleVisible: c.bubbleVisible,
-          selectButtonVisible: c.selectButtonVisible,
-          screensaverEnabled: c.screensaverEnabled,
-          screensaverDelay: c.screensaverDelay,
-          screensaverText: c.screensaverText || "",
-          welcomeText: c.welcomeText || "",
-          offersEnabled: c.offersEnabled,
-          wishesEnabled: c.wishesEnabled,
-          kioskLocked: c.kioskLocked
-        };
-        if (pw) settings.password = pw;
-        if (adminPw) settings.adminPassword = adminPw;
-        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
-
-        // Bubbla settings
-        localStorage.setItem(BUBBLA_STORAGE_KEY, JSON.stringify({
-          visaBubbla: c.bubbleVisible !== false,
-          textRad1: c.bubbleText1 || "",
-          textRad2: c.bubbleText2 || ""
-        }));
-
-        // Välj-knapp
-        localStorage.setItem(VAJL_KNAPP_STORAGE_KEY, JSON.stringify({
-          visaValjKnapp: c.selectButtonVisible !== false
-        }));
-      }
-
-      // Inventory: API returns stock per product item, build inventory map
-      if (data.catalog && Array.isArray(data.catalog)) {
-        const inv = {};
-        data.catalog.forEach(cat => {
-          (cat.items || []).forEach(item => {
-            if (item.stock != null || item.quantity != null) {
-              inv[item.id] = { stock: item.stock || item.quantity || 0 };
-            }
-          });
-        });
-        if (Object.keys(inv).length) {
-          localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(inv));
-        }
-      }
-
-      _fbSyncPaused = false;
-    }
-
-    /* ── Firestore real-time lyssnare för kvitton (admin-vyn) ── */
+    /* ── Firestore real-time lyssnare för kvitton ── */
     let _firestoreUnsubscribe = null;
     function startFirestoreReceiptListener() {
       if (_firestoreUnsubscribe || !window._firestoreDb) return;
       _firestoreUnsubscribe = window._firestoreDb
         .collection("receipts")
-        .where("userId", "==", KIOSK_USER_ID)
         .onSnapshot((snapshot) => {
           if (snapshot.empty) return;
           const localReceipts = loadReceipts();
@@ -2578,7 +2455,6 @@
             const id = fb.kvittoNummer.split("-").pop();
             const existing = localReceipts.find(r => String(r.id) === id);
             if (existing) {
-              // Uppdatera bara tagg och status om de ändrats från Firestore
               let updated = false;
               if (fb.status && fb.status !== existing.status) { existing.status = fb.status; updated = true; }
               if (fb.tagg !== undefined && fb.tagg !== existing.tagType) {
@@ -2586,7 +2462,6 @@
               }
               if (updated) changed = true;
             } else {
-              // Nytt kvitto från Firestore — lägg till lokalt
               localReceipts.push({
                 id,
                 status: fb.status || "registrerad",
@@ -2601,7 +2476,6 @@
           });
           if (!changed) return;
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(localReceipts));
-          // Uppdatera admin-vyer om de är öppna
           try {
             const reportSection = document.getElementById("adminSectionReport");
             if (reportSection && reportSection.classList.contains("active")) renderReport(state.currentReportMode);
@@ -2609,49 +2483,6 @@
             if (receiptsSection && receiptsSection.classList.contains("active")) renderReceiptsAdmin();
           } catch(e) {}
         }, (err) => { console.warn("Firestore listener error:", err); });
-    }
-
-    /* ── Poll for updates every 30 seconds ── */
-    let _pollInterval = null;
-    function startApiPolling() {
-      if (_pollInterval) return;
-      _pollInterval = setInterval(async () => {
-        try {
-          const resp = await fetch(KIOSK_CONFIG_API);
-          if (!resp.ok) return;
-          const data = await resp.json();
-          applyApiData(data);
-
-          // Re-render desktop-kiosk
-          if (!IS_MOBILE_VIEW) {
-            try {
-              categories = loadCatalog();
-              renderOverview();
-              renderCurrentCategory();
-              renderSummary();
-            } catch(e) {}
-          }
-          // Re-render mobilkiosk
-          if (IS_MOBILE_VIEW) {
-            try {
-              categories = loadCatalog();
-              renderMobileOverview();
-              renderMobileOffers();
-            } catch(e) {}
-          }
-          // Re-render admin-vyer om de är aktiva
-          try {
-            const reportSection = document.getElementById("adminSectionReport");
-            if (reportSection && reportSection.classList.contains("active")) {
-              renderReport(state.currentReportMode);
-            }
-            const receiptsSection = document.getElementById("adminSectionReceipts");
-            if (receiptsSection && receiptsSection.classList.contains("active")) {
-              renderReceiptsAdmin();
-            }
-          } catch(e) {}
-        } catch(e) { /* silently ignore poll errors */ }
-      }, 30000);
     }
 
     const DEFAULT_TAGS = [
@@ -2913,7 +2744,7 @@
       _localOffersSavedAt = Date.now();
       // Spara till Firestore så det överlever omstarter
       if (window._firestoreDb) {
-        window._firestoreDb.collection("kioskConfig").doc(KIOSK_USER_ID).set(
+        window._firestoreDb.collection("kioskConfig").doc("zivert-holm").set(
           { offers }, { merge: true }
         ).catch(e => console.warn("Firestore offers write failed:", e));
       }
@@ -4752,7 +4583,6 @@
           category,
           text,
           time: new Date().toISOString(),
-          userId: KIOSK_USER_ID,
           createdAt: firebase.firestore.FieldValue.serverTimestamp()
         }).catch(e => console.warn("Firestore wish write failed:", e));
       }
@@ -6537,23 +6367,17 @@
 
     /* ── Bootstrap ── */
     async function bootstrap() {
-      // 1. Ladda från admin API (5s timeout, fallback till localStorage)
-      await loadFromApi();
+      // 1. Ladda kategori-data från localStorage
       _fbReady = true;
-
-      // 2. Ladda kategori-data (kan ha uppdaterats från API)
       categories = loadCatalog();
 
-      // 3. Rendera
+      // 2. Rendera
       cleanupQtyState();
       renderOverview();
       renderSummary();
       openOverview();
 
-      // 4. Starta API-polling var 30:e sekund
-      startApiPolling();
-
-      // 5. Starta Firestore real-time lyssnare för kvitton (admin-vyn)
+      // 3. Starta Firestore real-time lyssnare för kvitton
       startFirestoreReceiptListener();
 
       if (IS_MOBILE_VIEW) {
