@@ -1001,10 +1001,16 @@
       justify-content: center;
     }
     #swishQr {
-      width: 100%; height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      width: 292px; height: 292px;
+      display: block;
+      text-align: center;
+      overflow: hidden;
+    }
+    #swishQr img, #swishQr canvas {
+      max-width: 100%;
+      max-height: 100%;
+      display: block;
+      margin: 0 auto;
     }
     .paminnelse-bubbla {
       position: relative;
@@ -2071,7 +2077,7 @@
                       <!-- Förhandsgranska skärmsläckare -->
                       <div style="margin-top:24px;padding:20px;background:rgba(201,168,76,.06);border:2px solid rgba(201,168,76,.2);border-radius:16px;">
                         <div style="font-size:16px;font-style:italic;color:#C9A84C;margin-bottom:8px;">🖥️ Skärmsläckare</div>
-                        <div style="font-size:13px;color:#6b7c74;margin-bottom:14px;">Förhandsgranska skärmsläckaren som visas efter 2 minuters inaktivitet.</div>
+                        <div style="font-size:13px;color:#6b7c74;margin-bottom:14px;">Förhandsgranska skärmsläckaren som visas efter 5 minuters inaktivitet.</div>
                         <button class="catalog-small-btn" onclick="förhandsvisaScreensaver()" type="button" style="font-size:16px;padding:10px 20px;">🖥️ Förhandsgranska skärmsläckare</button>
                       </div>
 
@@ -2338,22 +2344,24 @@
     </div>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <!-- Firebase SDK (compat) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" onerror="console.error('QRCode CDN failed to load')"></script>
+  <!-- Firebase SDK (compat) — Firestore for writes -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script>
-    /* ── Firebase init ── */
+    /* ── Firebase init — NEW project (admin-portal-v2) ── */
     const _firebaseApp = firebase.initializeApp({
-      apiKey: "AIzaSyCjLMN3qVOyn0M5Eu7P0EtA9rnqzAto5Zw",
-      authDomain: "zivert-holm.firebaseapp.com",
-      databaseURL: "https://zivert-holm-default-rtdb.europe-west1.firebasedatabase.app",
-      projectId: "zivert-holm",
-      messagingSenderId: "1078871076184",
-      appId: "1:1078871076184:web:573fc9d2d7ddb621fa892d"
+      apiKey: "AIzaSyA78uiP7gjCydAEFV9-E9x8XP486Bq5gg8",
+      authDomain: "admin-portal-v2-d140b.firebaseapp.com",
+      projectId: "admin-portal-v2-d140b",
+      storageBucket: "admin-portal-v2-d140b.firebasestorage.app",
+      messagingSenderId: "79971916209",
+      appId: "1:79971916209:web:5f80ee15d2d2b207d80590"
     });
-    const _fbDb = firebase.database();
-    window._fbDb = _fbDb;
+    const _firestoreDb = firebase.firestore();
+    window._firestoreDb = _firestoreDb;
+    const KIOSK_USER_ID = "SL14WNDFtnSKJQotNZrGmPEjlPi1";
+    const KIOSK_CONFIG_API = `https://kiosk-admin-zivarmahmods-projects.vercel.app/api/kiosk-config?userId=${KIOSK_USER_ID}`;
   </script>
 
   <script>
@@ -2392,272 +2400,191 @@
       return localStorage.getItem(RENSA_PW_KEY) || DEFAULT_RENSA_PW;
     }
 
-    /* ── Firebase sync layer ── */
-    const FB_KEY_MAP = {
-      [CATALOG_STORAGE_KEY]:        "produkter",
-      [INVENTORY_STORAGE_KEY]:      "lager",
-      [OFFERS_STORAGE_KEY]:         "erbjudanden",
-      [SALES_STORAGE_KEY]:          "rapport",
-      [RECEIPT_STORAGE_KEY]:        "kvitton",
-      [WISHES_STORAGE_KEY]:         "onskningar",
-      [TAGS_STORAGE_KEY]:           "taggar",
-      [RECEIPT_COUNTER_KEY]:        "receiptCounter",
-      [BUBBLA_STORAGE_KEY]:          "bubblainställningar",
-      [VAJL_KNAPP_STORAGE_KEY]:      "valjKnappInstallningar"
-    };
-    // Settings uses literal string in some places
-    const FB_SETTINGS_KEY = "installningar";
-
+    /* ── API-based sync layer (reads from kiosk-config API, writes to Firestore) ── */
     let _fbReady = false;
-    let _fbSyncPaused = false; // pause during incoming sync to avoid loops
+    let _fbSyncPaused = false;
 
-    async function fbWrite(fbPath, data) {
-      if (!window._fbDb || _fbSyncPaused) return;
-      try {
-        await window._fbDb.ref(fbPath).set(data);
-      } catch(e) { console.warn("Firebase write failed:", fbPath, e); }
-    }
+    // Stubs: old Realtime Database sync functions — no longer needed, admin portal is the source of truth
+    function fbWrite(fbPath, data) { /* no-op — old RTDB write removed */ }
+    function fbSyncAfterSave(localStorageKey) { /* no-op */ }
+    function fbSyncSettings() { /* no-op */ }
+    function fbSyncPlain(localStorageKey) { /* no-op */ }
 
-    // Fördröjd Firebase-push för kvitton (10 sek) — admin är källan, Firebase är backup
+    // Write receipt to new Firestore
     const _pendingReceiptPush = {};
     function scheduleReceiptFbPush(receiptId, year) {
       const key = `${year}-${receiptId}`;
       if (_pendingReceiptPush[key]) clearTimeout(_pendingReceiptPush[key]);
       _pendingReceiptPush[key] = setTimeout(async () => {
         delete _pendingReceiptPush[key];
-        if (!window._fbDb) return;
+        if (!window._firestoreDb) return;
         const receipts = loadReceipts();
         const r = receipts.find(rc => String(rc.id) === String(receiptId));
         if (!r) return;
-        const kvittoNummer = `ZH-${year}-${receiptId}`;
-        await fbWrite("kvitton/" + kvittoNummer, {
-          kvittoNummer,
-          datum: r.datum || "",
-          tid: r.tid || "",
-          betalning: "Swish",
-          status: r.status || "registrerad",
-          produkter: (r.items || []).map(i => ({ namn: i.name, antal: i.qty, prisStyck: i.price, prisTotal: i.sum })),
-          totalSumma: r.total || 0,
-          tagg: r.tagType || null
-        });
-        // Synka även försäljningsdata (rapport) till Firebase
-        fbSyncAfterSave(SALES_STORAGE_KEY);
+        const prefix = (loadSettings().receiptPrefix) || "ZH";
+        const kvittoNummer = `${prefix}-${year}-${receiptId}`;
+        try {
+          await window._firestoreDb.collection("receipts").doc(kvittoNummer).set({
+            kvittoNummer,
+            datum: r.datum || "",
+            tid: r.tid || "",
+            betalning: "Swish",
+            status: r.status || "registrerad",
+            produkter: (r.items || []).map(i => ({ namn: i.name, antal: i.qty, prisStyck: i.price, prisTotal: i.sum })),
+            totalSumma: r.total || 0,
+            tagg: r.tagType || null,
+            userId: KIOSK_USER_ID,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        } catch(e) { console.warn("Firestore receipt write failed:", e); }
       }, 10000);
     }
 
-    function fbSyncAfterSave(localStorageKey) {
-      if (!window._fbDb || _fbSyncPaused) return;
-      const fbPath = FB_KEY_MAP[localStorageKey];
-      if (!fbPath) return;
+    /* ── Load from API at startup ── */
+    async function loadFromApi() {
       try {
-        const raw = localStorage.getItem(localStorageKey);
-        const data = raw ? JSON.parse(raw) : null;
-        fbWrite(fbPath, data);
-      } catch(e) { /* ignore parse errors */ }
-    }
-
-    function fbSyncSettings() {
-      if (!window._fbDb || _fbSyncPaused) return;
-      try {
-        const raw = localStorage.getItem("zivert-holm-settings-v1");
-        const data = raw ? JSON.parse(raw) : {};
-        // Skicka aldrig lösenord till Firebase
-        delete data.password;
-        delete data.adminPassword;
-        fbWrite(FB_SETTINGS_KEY, data);
-      } catch(e) {}
-    }
-
-    // Sync a plain string value (passwords, counters)
-    function fbSyncPlain(localStorageKey) {
-      if (!window._fbDb || _fbSyncPaused) return;
-      const fbPath = FB_KEY_MAP[localStorageKey];
-      if (!fbPath) return;
-      const val = localStorage.getItem(localStorageKey);
-      fbWrite(fbPath, val);
-    }
-
-    /* ── Load from Firebase at startup ── */
-    async function loadFromFirebase() {
-      if (!window._fbDb) return false;
-      try {
-        const snap = await Promise.race([
-          window._fbDb.ref("/").once("value"),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000))
+        const resp = await Promise.race([
+          fetch(KIOSK_CONFIG_API),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000))
         ]);
-        if (!snap.exists()) return false; // empty DB → will migrate
-        const data = snap.val();
-        _fbSyncPaused = true;
-
-        // Om receiptCounter är 0 eller saknas (fresh start) — rensa gammal lokal data
-        if (!data.receiptCounter || data.receiptCounter === 0) {
-          localStorage.removeItem(RECEIPT_STORAGE_KEY);
-          localStorage.removeItem(SALES_STORAGE_KEY);
-          localStorage.setItem(RECEIPT_COUNTER_KEY, "0");
-          console.log("Fresh start detected — local receipts and sales cleared.");
-        }
-        if (data.produkter)       localStorage.setItem(CATALOG_STORAGE_KEY, JSON.stringify(data.produkter));
-        if (data.lager)           localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(data.lager));
-        if (data.erbjudanden)     localStorage.setItem(OFFERS_STORAGE_KEY, JSON.stringify(data.erbjudanden));
-        if (data.rapport) {
-          const r = data.rapport;
-          localStorage.setItem(SALES_STORAGE_KEY, JSON.stringify(Array.isArray(r) ? r : Object.values(r)));
-        }
-        if (data.kvitton) {
-          const kvittonData = data.kvitton;
-          if (Array.isArray(kvittonData)) {
-            localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(kvittonData));
-          } else if (typeof kvittonData === "object") {
-            // Hantera blandformat: {id} (array-format) och {kvittoNummer} (ZH-format)
-            const merged = {};
-            Object.entries(kvittonData).forEach(([key, v]) => {
-              if (!v || typeof v !== "object") return;
-              if (v.id) {
-                // Array-format — använd direkt
-                merged[v.id] = v;
-              } else if (v.kvittoNummer) {
-                // ZH-format — konvertera till lokal format
-                const id = v.kvittoNummer.split("-").pop();
-                if (!merged[id]) {
-                  merged[id] = {
-                    id,
-                    status: v.status || "registrerad",
-                    time: v.datum ? new Date(v.datum.split("-").reverse().join("-")).toISOString() : new Date().toISOString(),
-                    datum: v.datum || "", tid: v.tid || "",
-                    items: (v.produkter || []).map(p => ({ name: p.namn, qty: p.antal, price: p.prisStyck, sum: p.prisTotal })),
-                    total: v.totalSumma || 0,
-                    tagged: !!v.tagg, tagType: v.tagg || null
-                  };
-                } else {
-                  // Uppdatera bara status/tagg om entry redan finns från array-format
-                  if (v.status) merged[id].status = v.status;
-                  if (v.tagg !== undefined) { merged[id].tagged = !!v.tagg; merged[id].tagType = v.tagg || null; }
-                }
-              }
-            });
-            const entries = Object.values(merged);
-            if (entries.length) {
-              localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(entries));
-            }
-          }
-        }
-        if (data.onskningar)      localStorage.setItem(WISHES_STORAGE_KEY, JSON.stringify(data.onskningar));
-        if (data.taggar)          localStorage.setItem(TAGS_STORAGE_KEY, JSON.stringify(data.taggar));
-        if (data.installningar) {
-          const s = data.installningar;
-          delete s.password; delete s.adminPassword;
-          localStorage.setItem("zivert-holm-settings-v1", JSON.stringify(s));
-        }
-        if (data.receiptCounter)  localStorage.setItem(RECEIPT_COUNTER_KEY, String(data.receiptCounter));
-        if (data["bubblainställningar"]) localStorage.setItem(BUBBLA_STORAGE_KEY, JSON.stringify(data["bubblainställningar"]));
-        if (data["valjKnappInstallningar"]) localStorage.setItem(VAJL_KNAPP_STORAGE_KEY, JSON.stringify(data["valjKnappInstallningar"]));
-        if (data.nolladAllt)       localStorage.setItem(NOLLA_ALLT_KEY, "true");
-        _fbSyncPaused = false;
-        _fbReady = true;
-        console.log("Firebase data loaded.");
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        applyApiData(data);
+        console.log("API data loaded from admin portal.");
         return true;
       } catch(e) {
-        _fbSyncPaused = false;
-        console.warn("Firebase ej tillgänglig, använder localStorage:", e.message);
+        console.warn("API ej tillgänglig, använder localStorage:", e.message);
         return false;
       }
     }
 
-    /* ── Migrate localStorage → Firebase (per-key, skips existing) ── */
-    async function migrateToFirebase() {
-      if (!window._fbDb) return;
-      console.log("Kontrollerar Firebase-nycklar mot localStorage...");
+    function applyApiData(data) {
+      _fbSyncPaused = true;
 
-      // Hämta hela databasen en gång för att kolla vilka nycklar som finns
-      let existingData = {};
-      try {
-        const snap = await window._fbDb.ref("/").once("value");
-        existingData = snap.exists() ? snap.val() : {};
-      } catch(e) {
-        console.warn("Kunde inte läsa Firebase för migration:", e);
-        return;
+      // Catalog: API returns [{key, title, subtitle, emoji, color, items:[{id, name, price, ...}]}]
+      // The kiosk expects the same format — map directly
+      if (data.catalog && Array.isArray(data.catalog)) {
+        const catalog = data.catalog.map(cat => ({
+          key: cat.key,
+          title: cat.title,
+          subtitle: cat.subtitle || "",
+          emoji: cat.emoji || "",
+          color: cat.color || "",
+          items: (cat.items || []).map(item => ({
+            id: item.id,
+            name: item.name,
+            price: item.price || 0,
+            note: item.note || undefined
+          }))
+        }));
+        localStorage.setItem(CATALOG_STORAGE_KEY, JSON.stringify(catalog));
       }
 
-      const updates = {};
-      let count = 0;
+      // Offers: API returns [{id, title, description, price, products, isMain}]
+      // Kiosk expects [{type, title, desc, paketpris, produkter:[{namn, antal, prisInfo}]}]
+      if (data.offers && Array.isArray(data.offers)) {
+        const offers = data.offers.map(o => ({
+          type: o.isMain ? "VECKANS DEAL" : "ERBJUDANDE",
+          title: o.title || "",
+          desc: o.description || "",
+          paketpris: o.price || 0,
+          produkter: (o.products || []).map(p => ({
+            namn: typeof p === "string" ? p : (p.name || p.namn || ""),
+            antal: (typeof p === "object" ? p.quantity || p.antal : 1) || 1,
+            prisInfo: ""
+          }))
+        }));
+        localStorage.setItem(OFFERS_STORAGE_KEY, JSON.stringify(offers));
+      }
 
-      // Om receiptCounter = 0, vi är i fresh start — skipppa kvitton och rapport
-      const isFreshStart = !existingData.receiptCounter || existingData.receiptCounter === 0;
+      // Config/settings: map API config to local settings format
+      if (data.config) {
+        const c = data.config;
+        const localSettings = (() => { try { return JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}"); } catch(e) { return {}; } })();
+        // Preserve local passwords
+        const pw = localSettings.password;
+        const adminPw = localSettings.adminPassword;
+        const settings = {
+          ...localSettings,
+          swishNumber: c.swishNumber || localSettings.swishNumber || "",
+          storeName: c.storeName || "",
+          receiptPrefix: c.receiptPrefix || "ZH",
+          primaryColor: c.primaryColor || "",
+          secondaryColor: c.secondaryColor || "",
+          accentColor: c.accentColor || "",
+          bubbleText1: c.bubbleText1 || "",
+          bubbleText2: c.bubbleText2 || "",
+          bubbleVisible: c.bubbleVisible,
+          selectButtonVisible: c.selectButtonVisible,
+          screensaverEnabled: c.screensaverEnabled,
+          screensaverDelay: c.screensaverDelay,
+          screensaverText: c.screensaverText || "",
+          welcomeText: c.welcomeText || "",
+          offersEnabled: c.offersEnabled,
+          wishesEnabled: c.wishesEnabled,
+          kioskLocked: c.kioskLocked
+        };
+        if (pw) settings.password = pw;
+        if (adminPw) settings.adminPassword = adminPw;
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
 
-      // JSON keys från FB_KEY_MAP
-      Object.entries(FB_KEY_MAP).forEach(([lsKey, fbPath]) => {
-        // Skippa kvitton/rapport vid fresh start
-        if (isFreshStart && (fbPath === "kvitton" || fbPath === "rapport")) return;
+        // Bubbla settings
+        localStorage.setItem(BUBBLA_STORAGE_KEY, JSON.stringify({
+          visaBubbla: c.bubbleVisible !== false,
+          textRad1: c.bubbleText1 || "",
+          textRad2: c.bubbleText2 || ""
+        }));
 
-        if (existingData[fbPath] !== undefined && existingData[fbPath] !== null) return; // redan i Firebase
-        const raw = localStorage.getItem(lsKey);
-        if (!raw) return; // finns inte lokalt heller
-        try { updates[fbPath] = JSON.parse(raw); count++; } catch(e) { updates[fbPath] = raw; count++; }
-      });
+        // Välj-knapp
+        localStorage.setItem(VAJL_KNAPP_STORAGE_KEY, JSON.stringify({
+          visaValjKnapp: c.selectButtonVisible !== false
+        }));
+      }
 
-      // Settings
-      if (!existingData[FB_SETTINGS_KEY]) {
-        const settingsRaw = localStorage.getItem("zivert-holm-settings-v1");
-        if (settingsRaw) {
-          try {
-            const settings = JSON.parse(settingsRaw);
-            // Ta bort eventuella lösenordsfält innan upload
-            delete settings.adminPassword;
-            delete settings.password;
-            updates[FB_SETTINGS_KEY] = settings;
-            count++;
-          } catch(e) {}
+      // Inventory: API returns stock per product item, build inventory map
+      if (data.catalog && Array.isArray(data.catalog)) {
+        const inv = {};
+        data.catalog.forEach(cat => {
+          (cat.items || []).forEach(item => {
+            if (item.stock != null || item.quantity != null) {
+              inv[item.id] = { stock: item.stock || item.quantity || 0 };
+            }
+          });
+        });
+        if (Object.keys(inv).length) {
+          localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(inv));
         }
       }
 
-      if (count === 0) {
-        console.log("Alla nycklar finns redan i Firebase.");
-        return;
-      }
-
-      console.log(`Migrerar ${count} nycklar till Firebase:`, Object.keys(updates).join(", "));
-      window._fbDb.ref("/").update(updates)
-        .then(() => console.log("Migration klar."))
-        .catch(e => console.warn("Migration failed:", e));
+      _fbSyncPaused = false;
     }
 
-    /* ── Realtime listener (kiosk mode) ── */
-    let _realtimeSyncStarted = false;
-    function startRealtimeSync() {
-      if (!window._fbDb || _realtimeSyncStarted) return;
-      _realtimeSyncStarted = true;
-      window._fbDb.ref("/").on("value", (snap) => {
-        if (!snap.exists()) return;
-        const data = snap.val();
-        _fbSyncPaused = true;
-        if (data.produkter)   localStorage.setItem(CATALOG_STORAGE_KEY, JSON.stringify(data.produkter));
-        if (data.lager)       localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(data.lager));
-        if (data.erbjudanden) localStorage.setItem(OFFERS_STORAGE_KEY, JSON.stringify(data.erbjudanden));
-        if (data.rapport) {
-          const r = data.rapport;
-          localStorage.setItem(SALES_STORAGE_KEY, JSON.stringify(Array.isArray(r) ? r : Object.values(r)));
-        }
-        if (data.onskningar)  localStorage.setItem(WISHES_STORAGE_KEY, JSON.stringify(data.onskningar));
-        if (data.taggar)      localStorage.setItem(TAGS_STORAGE_KEY, JSON.stringify(data.taggar));
-        if (data["bubblainställningar"]) localStorage.setItem(BUBBLA_STORAGE_KEY, JSON.stringify(data["bubblainställningar"]));
-        if (data["valjKnappInstallningar"]) localStorage.setItem(VAJL_KNAPP_STORAGE_KEY, JSON.stringify(data["valjKnappInstallningar"]));
-        // Synka kvittoräknare
-        if (data.receiptCounter != null) {
-          localStorage.setItem(RECEIPT_COUNTER_KEY, String(data.receiptCounter));
-        }
-        // Kvitton: Firebase är backup — lokal data är källan.
-        // Firebase får bara lägga till kvitton som INTE finns lokalt (t.ex. från annan enhet).
-        // Lokala kvitton skrivs aldrig över av Firebase.
-        if (data.kvitton && typeof data.kvitton === "object" && !Array.isArray(data.kvitton)) {
+    /* ── Firestore real-time lyssnare för kvitton (admin-vyn) ── */
+    let _firestoreUnsubscribe = null;
+    function startFirestoreReceiptListener() {
+      if (_firestoreUnsubscribe || !window._firestoreDb) return;
+      _firestoreUnsubscribe = window._firestoreDb
+        .collection("receipts")
+        .where("userId", "==", KIOSK_USER_ID)
+        .onSnapshot((snapshot) => {
+          if (snapshot.empty) return;
           const localReceipts = loadReceipts();
-          const fbEntries = Object.values(data.kvitton);
           let changed = false;
-          fbEntries.forEach(fb => {
+          snapshot.forEach(doc => {
+            const fb = doc.data();
             if (!fb || !fb.kvittoNummer) return;
             const id = fb.kvittoNummer.split("-").pop();
-            const exists = localReceipts.some(r => String(r.id) === id);
-            if (!exists) {
-              // Nytt kvitto från Firebase som inte finns lokalt — lägg till
+            const existing = localReceipts.find(r => String(r.id) === id);
+            if (existing) {
+              // Uppdatera bara tagg och status om de ändrats från Firestore
+              let updated = false;
+              if (fb.status && fb.status !== existing.status) { existing.status = fb.status; updated = true; }
+              if (fb.tagg !== undefined && fb.tagg !== existing.tagType) {
+                existing.tagged = !!fb.tagg; existing.tagType = fb.tagg || null; updated = true;
+              }
+              if (updated) changed = true;
+            } else {
+              // Nytt kvitto från Firestore — lägg till lokalt
               localReceipts.push({
                 id,
                 status: fb.status || "registrerad",
@@ -2670,51 +2597,59 @@
               changed = true;
             }
           });
-          if (changed) localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(localReceipts));
-        }
-        if (data.installningar) {
-          const s = data.installningar;
-          delete s.password; delete s.adminPassword;
-          // Merga utan att skriva över lokala lösenord
+          if (!changed) return;
+          localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(localReceipts));
+          // Uppdatera admin-vyer om de är öppna
           try {
-            const localSettings = JSON.parse(localStorage.getItem("zivert-holm-settings-v1") || "{}");
-            const merged = { ...localSettings, ...s };
-            if (localSettings.password) merged.password = localSettings.password;
-            if (localSettings.adminPassword) merged.adminPassword = localSettings.adminPassword;
-            localStorage.setItem("zivert-holm-settings-v1", JSON.stringify(merged));
+            const reportSection = document.getElementById("adminSectionReport");
+            if (reportSection && reportSection.classList.contains("active")) renderReport(state.currentReportMode);
+            const receiptsSection = document.getElementById("adminSectionReceipts");
+            if (receiptsSection && receiptsSection.classList.contains("active")) renderReceiptsAdmin();
           } catch(e) {}
-        }
-        _fbSyncPaused = false;
+        }, (err) => { console.warn("Firestore listener error:", err); });
+    }
 
-        // Re-render desktop-kiosk
-        if (!IS_MOBILE_VIEW) {
-          try {
-            categories = loadCatalog();
-            renderOverview();
-            renderCurrentCategory();
-            renderSummary();
-          } catch(e) {}
-        }
-        // Re-render mobilkiosk
-        if (IS_MOBILE_VIEW) {
-          try {
-            categories = loadCatalog();
-            renderMobileOverview();
-            renderMobileOffers();
-          } catch(e) {}
-        }
-        // Re-render admin-vyer om de är aktiva
+    /* ── Poll for updates every 30 seconds ── */
+    let _pollInterval = null;
+    function startApiPolling() {
+      if (_pollInterval) return;
+      _pollInterval = setInterval(async () => {
         try {
-          const reportSection = document.getElementById("adminSectionReport");
-          if (reportSection && reportSection.classList.contains("active")) {
-            renderReport(state.currentReportMode);
+          const resp = await fetch(KIOSK_CONFIG_API);
+          if (!resp.ok) return;
+          const data = await resp.json();
+          applyApiData(data);
+
+          // Re-render desktop-kiosk
+          if (!IS_MOBILE_VIEW) {
+            try {
+              categories = loadCatalog();
+              renderOverview();
+              renderCurrentCategory();
+              renderSummary();
+            } catch(e) {}
           }
-          const receiptsSection = document.getElementById("adminSectionReceipts");
-          if (receiptsSection && receiptsSection.classList.contains("active")) {
-            renderReceiptsAdmin();
+          // Re-render mobilkiosk
+          if (IS_MOBILE_VIEW) {
+            try {
+              categories = loadCatalog();
+              renderMobileOverview();
+              renderMobileOffers();
+            } catch(e) {}
           }
-        } catch(e) {}
-      });
+          // Re-render admin-vyer om de är aktiva
+          try {
+            const reportSection = document.getElementById("adminSectionReport");
+            if (reportSection && reportSection.classList.contains("active")) {
+              renderReport(state.currentReportMode);
+            }
+            const receiptsSection = document.getElementById("adminSectionReceipts");
+            if (receiptsSection && receiptsSection.classList.contains("active")) {
+              renderReceiptsAdmin();
+            }
+          } catch(e) {}
+        } catch(e) { /* silently ignore poll errors */ }
+      }, 30000);
     }
 
     const DEFAULT_TAGS = [
@@ -2899,25 +2834,7 @@
 
     /* ── Receipt ID ── */
     async function getNextReceiptId() {
-      try {
-        if (window._fbDb) {
-          // Använd Firebase transaction för atomisk räknare — aldrig dubbletter
-          let newId = null;
-          await Promise.race([
-            window._fbDb.ref("receiptCounter").transaction(current => {
-              const val = parseInt(current || 0);
-              newId = (val >= 1000) ? 1 : val + 1;
-              return newId;
-            }),
-            new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 3000))
-          ]);
-          if (newId !== null) {
-            localStorage.setItem(RECEIPT_COUNTER_KEY, String(newId));
-            return String(newId).padStart(4, "0");
-          }
-        }
-      } catch(e) { /* fall through to localStorage */ }
-      // Fallback: localStorage
+      // Use localStorage counter (admin portal is source of truth for data)
       let current = parseInt(localStorage.getItem(RECEIPT_COUNTER_KEY) || "0");
       current = (current >= 1000) ? 1 : current + 1;
       localStorage.setItem(RECEIPT_COUNTER_KEY, String(current));
@@ -3118,7 +3035,7 @@
     }
     function buildSwishPayload(amount, message) {
       const num = getEffectiveSwishNumber();
-      return `C${num};${formatSwishAmount(amount)};${encodeURIComponent(message)};${SWISH_LOCK_MASK}`;
+      return `C${num};${formatSwishAmount(amount)};${message};${SWISH_LOCK_MASK}`;
     }
     function getItemKey(catKey, itemId) { return `${catKey}__${itemId}`; }
     function getQty(catKey, itemId) { return state.qty[getItemKey(catKey, itemId)] || 0; }
@@ -3559,10 +3476,47 @@
       payNumberText.textContent = `Swish: ${getEffectiveSwishNumber()}`;
 
       swishQr.innerHTML = "";
-      state.qrInstance = new QRCode(swishQr, {
-        text: payload, width: 320, height: 320,
-        correctLevel: QRCode.CorrectLevel.M
-      });
+      console.log("QR payload:", payload, "| QRCode lib loaded:", typeof QRCode !== "undefined");
+
+      function qrFallbackImg(targetEl, data) {
+        const img = document.createElement("img");
+        img.src = "https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=" + encodeURIComponent(data);
+        img.alt = "Swish QR-kod";
+        img.style.cssText = "width:280px;height:280px;display:block;";
+        img.onerror = function() {
+          console.error("Fallback QR image API also failed");
+          targetEl.innerHTML = '<div style="text-align:center;padding:20px;color:#c0392b;font-size:16px;">QR-kod kunde inte genereras.<br>Swish till: ' + getEffectiveSwishNumber() + '<br>Belopp: ' + formatKr(total) + '</div>';
+        };
+        targetEl.appendChild(img);
+      }
+
+      if (typeof QRCode !== "undefined") {
+        try {
+          // Clear any previous instance
+          if (state.qrInstance && state.qrInstance.clear) {
+            try { state.qrInstance.clear(); } catch(e2) {}
+          }
+          state.qrInstance = new QRCode(swishQr, {
+            text: payload, width: 280, height: 280,
+            correctLevel: QRCode.CorrectLevel.M
+          });
+          // Verify QR was actually rendered (canvas or img should exist)
+          setTimeout(() => {
+            if (!swishQr.querySelector("canvas") && !swishQr.querySelector("img")) {
+              console.warn("QRCode library did not render, using fallback");
+              swishQr.innerHTML = "";
+              qrFallbackImg(swishQr, payload);
+            }
+          }, 500);
+        } catch (e) {
+          console.warn("QRCode library error, using fallback:", e);
+          swishQr.innerHTML = "";
+          qrFallbackImg(swishQr, payload);
+        }
+      } else {
+        console.warn("QRCode library not loaded, using fallback image API");
+        qrFallbackImg(swishQr, payload);
+      }
 
       payOverlay.classList.add("active");
       payOverlay.setAttribute("aria-hidden", "false");
@@ -3678,9 +3632,10 @@
         if (idx !== -1) {
           const [removed] = receipts.splice(idx, 1);
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-          if (window._fbDb) {
+          if (window._firestoreDb) {
             const year = new Date(removed.time).getFullYear();
-            window._fbDb.ref(`kvitton/ZH-${year}-${state.currentReceiptId}`).remove().catch(() => {});
+            const prefix = (loadSettings().receiptPrefix) || "ZH";
+            window._firestoreDb.collection("receipts").doc(`${prefix}-${year}-${state.currentReceiptId}`).delete().catch(() => {});
           }
         }
         state.currentReceiptId = null;
@@ -3980,9 +3935,7 @@
       }
       _fbSyncPaused = true;
       localStorage.removeItem(SALES_STORAGE_KEY);
-      if (window._fbDb) {
-        try { await window._fbDb.ref("rapport").set(null); } catch(e) {}
-      }
+      // Reports are local only — admin portal manages its own data
       _fbSyncPaused = false;
       renderReport(state.currentReportMode);
     }
@@ -4514,17 +4467,7 @@
         localStorage.removeItem(RECEIPT_COUNTER_KEY);
         localStorage.setItem(NOLLA_ALLT_KEY, "true");
 
-        // Radera Firebase atomiskt (en update = en lyssnarhändelse)
-        if (window._fbDb) {
-          try {
-            await window._fbDb.ref("/").update({
-              kvitton: null,
-              rapport: null,
-              receiptCounter: null,
-              nolladAllt: true
-            });
-          } catch(e) { console.warn("Firebase nolla allt:", e); }
-        }
+        // Local data cleared — admin portal manages Firestore data separately
 
         _fbSyncPaused = false;
 
@@ -4794,7 +4737,16 @@
         text
       });
       localStorage.setItem(WISHES_STORAGE_KEY, JSON.stringify(wishes));
-      fbSyncAfterSave(WISHES_STORAGE_KEY);
+      // Write wish to new Firestore
+      if (window._firestoreDb) {
+        window._firestoreDb.collection("wishes").add({
+          category,
+          text,
+          time: new Date().toISOString(),
+          userId: KIOSK_USER_ID,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        }).catch(e => console.warn("Firestore wish write failed:", e));
+      }
     }
 
     let selectedWishCategory = null;
@@ -5094,10 +5046,11 @@
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
           // Registrera försäljningen med kvitto-ID
           recordSale(r.items.map(i => ({ ...i, categoryKey: i.categoryKey || "", categoryTitle: i.categoryTitle || "", itemId: i.itemId || "", sum: i.sum || i.qty * i.price })), r.id);
-          if (window._fbDb && !_fbSyncPaused) {
+          if (window._firestoreDb && !_fbSyncPaused) {
             const year = new Date(r.time).getFullYear();
-            const kvittoNummer = `ZH-${year}-${receiptId}`;
-            fbWrite("kvitton/" + kvittoNummer + "/status", "registrerad");
+            const prefix = (loadSettings().receiptPrefix) || "ZH";
+            const kvittoNummer = `${prefix}-${year}-${receiptId}`;
+            window._firestoreDb.collection("receipts").doc(kvittoNummer).update({ status: "registrerad" }).catch(() => {});
           }
           await showGlobalModal({ title: "✓ Bekräftat", subtitle: `Kvitto #${receiptId} bekräftat.`, type: "confirm", confirmLabel: "OK" });
           renderReceiptsAdmin();
@@ -5226,9 +5179,10 @@
           const deleted = receipts.find(r => String(r.id) === String(receiptId));
           receipts = receipts.filter(r => String(r.id) !== String(receiptId));
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-          if (window._fbDb && deleted) {
+          if (window._firestoreDb && deleted) {
             const year = new Date(deleted.time).getFullYear();
-            window._fbDb.ref(`kvitton/ZH-${year}-${receiptId}`).remove().catch(() => {});
+            const prefix = (loadSettings().receiptPrefix) || "ZH";
+            window._firestoreDb.collection("receipts").doc(`${prefix}-${year}-${receiptId}`).delete().catch(() => {});
           }
           renderReceiptsAdmin();
         });
@@ -5254,10 +5208,11 @@
           toDelete.forEach(r => unrecordSale(r.id));
           const filtered = receipts.filter(r => r.tagType !== tagId);
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(filtered));
-          if (window._fbDb) {
+          if (window._firestoreDb) {
+            const prefix = (loadSettings().receiptPrefix) || "ZH";
             toDelete.forEach(r => {
               const year = new Date(r.time).getFullYear();
-              window._fbDb.ref(`kvitton/ZH-${year}-${r.id}`).remove().catch(() => {});
+              window._firestoreDb.collection("receipts").doc(`${prefix}-${year}-${r.id}`).delete().catch(() => {});
             });
           }
           renderReceiptsAdmin();
@@ -5265,16 +5220,16 @@
       });
     }
 
-    // Synka tagg till Firebase per-kvitto nod
+    // Synka tagg till Firestore per-kvitto
     function fbUpdateReceiptTag(receiptId, tagType) {
-      if (!window._fbDb || _fbSyncPaused) return;
-      // Hitta kvittonumret i Firebase-format
+      if (!window._firestoreDb || _fbSyncPaused) return;
       const receipts = loadReceipts();
       const r = receipts.find(r => String(r.id) === String(receiptId));
       if (!r) return;
       const year = new Date(r.time).getFullYear();
-      const kvittoNummer = `ZH-${year}-${receiptId}`;
-      fbWrite("kvitton/" + kvittoNummer + "/tagg", tagType || null);
+      const prefix = (loadSettings().receiptPrefix) || "ZH";
+      const kvittoNummer = `${prefix}-${year}-${receiptId}`;
+      window._firestoreDb.collection("receipts").doc(kvittoNummer).update({ tagg: tagType || null }).catch(() => {});
     }
 
     /* ── Inventory editor (unified Lager & Stock) ── */
@@ -6213,10 +6168,11 @@
               localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
               fbSyncAfterSave(RECEIPT_STORAGE_KEY);
               recordSale(r.items.map(i => ({ ...i, categoryKey: i.categoryKey || "", categoryTitle: i.categoryTitle || "", itemId: i.itemId || "", sum: i.sum || i.qty * i.price })), r.id);
-              if (window._fbDb && !_fbSyncPaused) {
+              if (window._firestoreDb && !_fbSyncPaused) {
                 const year = new Date(r.time).getFullYear();
-                const kvittoNummer = `ZH-${year}-${receiptId}`;
-                fbWrite("kvitton/" + kvittoNummer + "/status", "registrerad");
+                const prefix = (loadSettings().receiptPrefix) || "ZH";
+                const kvittoNummer = `${prefix}-${year}-${receiptId}`;
+                window._firestoreDb.collection("receipts").doc(kvittoNummer).update({ status: "registrerad" }).catch(() => {});
               }
               await showGlobalModal({ title: "✓ Bekräftat", subtitle: `Kvitto #${receiptId} bekräftat.`, type: "confirm", confirmLabel: "OK" });
               openMobileAdminSection("receipts");
@@ -6265,9 +6221,10 @@
               const deleted = receipts.find(r => String(r.id) === String(receiptId));
               receipts = receipts.filter(r => String(r.id) !== String(receiptId));
               localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-              if (window._fbDb && deleted) {
+              if (window._firestoreDb && deleted) {
                 const year = new Date(deleted.time).getFullYear();
-                window._fbDb.ref(`kvitton/ZH-${year}-${receiptId}`).remove().catch(() => {});
+                const prefix = (loadSettings().receiptPrefix) || "ZH";
+                window._firestoreDb.collection("receipts").doc(`${prefix}-${year}-${receiptId}`).delete().catch(() => {});
               }
               openMobileAdminSection("receipts");
             });
@@ -6287,10 +6244,11 @@
               toDelete.forEach(r => unrecordSale(r.id));
               const filtered = receipts.filter(r => r.tagType !== tagId);
               localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(filtered));
-              if (window._fbDb) {
+              if (window._firestoreDb) {
+                const prefix = (loadSettings().receiptPrefix) || "ZH";
                 toDelete.forEach(r => {
                   const year = new Date(r.time).getFullYear();
-                  window._fbDb.ref(`kvitton/ZH-${year}-${r.id}`).remove().catch(() => {});
+                  window._firestoreDb.collection("receipts").doc(`${prefix}-${year}-${r.id}`).delete().catch(() => {});
                 });
               }
               openMobileAdminSection("receipts");
@@ -6498,7 +6456,7 @@
 
     /* ── Skärmsläckare ── */
     let inaktivitetTimer;
-    const INAKTIVITET_MS = 2 * 60 * 1000; // 2 minuter
+    const INAKTIVITET_MS = 5 * 60 * 1000; // 5 minuter
 
     function visaScreensaver() {
       // Aktiveras aldrig i adminläge (desktop: reportView aktiv, mobil: adminPanel synligt)
@@ -6570,15 +6528,11 @@
 
     /* ── Bootstrap ── */
     async function bootstrap() {
-      // 1. Ladda från Firebase (3s timeout, fallback till localStorage)
-      await loadFromFirebase();
-      // 2. Migrera saknade nycklar från localStorage → Firebase
-      if (window._fbDb) {
-        await migrateToFirebase();
-      }
+      // 1. Ladda från admin API (5s timeout, fallback till localStorage)
+      await loadFromApi();
       _fbReady = true;
 
-      // 2. Ladda kategori-data (kan ha uppdaterats från Firebase)
+      // 2. Ladda kategori-data (kan ha uppdaterats från API)
       categories = loadCatalog();
 
       // 3. Rendera
@@ -6587,8 +6541,11 @@
       renderSummary();
       openOverview();
 
-      // 4. Starta realtidslyssning (BÅDE mobil och desktop)
-      startRealtimeSync();
+      // 4. Starta API-polling var 30:e sekund
+      startApiPolling();
+
+      // 5. Starta Firestore real-time lyssnare för kvitton (admin-vyn)
+      startFirestoreReceiptListener();
 
       if (IS_MOBILE_VIEW) {
         document.getElementById("mobileApp").style.display = "block";
