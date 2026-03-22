@@ -2405,7 +2405,25 @@
     let _fbSyncPaused = false;
     const FS_CONFIG_DOC = "zivert-holm";
 
+    // Nycklar som ALDRIG ska synkas till Firestore
+    const NEVER_SYNC_TO_FIRESTORE = [
+      'password', 'adminPassword', 'swishNumber',
+      'notes', MOBILE_ADMIN_PW_KEY, RECEIPT_DELETE_PASSWORD_KEY,
+      RENSA_PW_KEY, 'receiptDeletePassword'
+    ];
+
+    function filterSettingsForFirestore(settings) {
+      const filtered = { ...settings };
+      NEVER_SYNC_TO_FIRESTORE.forEach(k => delete filtered[k]);
+      // Ta bort alla nycklar som innehåller pw/Password/lösenord
+      Object.keys(filtered).forEach(k => {
+        if (/pw|password|lösenord/i.test(k)) delete filtered[k];
+      });
+      return filtered;
+    }
+
     // Spara config-data (katalog, lager, erbjudanden, inställningar) till Firestore
+    // _fbSyncPaused påverkar BARA denna funktion, aldrig kvitton
     function fsSyncConfig() {
       if (!window._firestoreDb || _fbSyncPaused) return;
       try {
@@ -2413,8 +2431,9 @@
         const inventory= JSON.parse(localStorage.getItem(INVENTORY_STORAGE_KEY)|| "{}");
         const offers   = JSON.parse(localStorage.getItem(OFFERS_STORAGE_KEY)   || "[]");
         const tags     = JSON.parse(localStorage.getItem(TAGS_STORAGE_KEY)     || "[]");
-        const settings = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}");
-        delete settings.password; delete settings.adminPassword;
+        const settings = filterSettingsForFirestore(
+          JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}")
+        );
         window._firestoreDb.collection("config").doc(FS_CONFIG_DOC).set(
           { catalog, inventory, offers, tags, settings },
           { merge: true }
@@ -2422,31 +2441,61 @@
       } catch(e) {}
     }
 
-    // Spara kvitto till Firestore efter 10 sek — admin har redan fått det via localStorage
-    const _pendingReceiptPush = {};
-    function scheduleReceiptFbPush(receiptId, year) {
-      const key = `${year}-${receiptId}`;
-      if (_pendingReceiptPush[key]) clearTimeout(_pendingReceiptPush[key]);
-      _pendingReceiptPush[key] = setTimeout(() => {
-        delete _pendingReceiptPush[key];
+    // Hjälpfunktion: bygg fullständigt kvittonummer ZH-[år]-[id]
+    function getFullReceiptId(shortId, year) {
+      const prefix = (loadSettings().receiptPrefix) || "ZH";
+      if (!year) year = new Date().getFullYear();
+      return `${prefix}-${year}-${shortId}`;
+    }
+
+    // Offline-kö för kvitton som inte kunde skrivas till Firestore
+    const RECEIPT_QUEUE_KEY = "zivert-holm-receipt-queue-v1";
+    function getReceiptQueue() {
+      try { return JSON.parse(localStorage.getItem(RECEIPT_QUEUE_KEY) || "[]"); } catch(e) { return []; }
+    }
+    function saveReceiptQueue(q) {
+      localStorage.setItem(RECEIPT_QUEUE_KEY, JSON.stringify(q));
+    }
+
+    // Skriv kvitto DIREKT till Firestore — _fbSyncPaused påverkar INTE detta
+    function writeReceiptToFirestore(receipt) {
+      const year = new Date(receipt.time).getFullYear();
+      const kvittoNummer = getFullReceiptId(receipt.id, year);
+      if (!window._firestoreDb) {
+        // Offline — köa för retry
+        const q = getReceiptQueue();
+        if (!q.some(r => r.id === receipt.id)) { q.push(receipt); saveReceiptQueue(q); }
+        return;
+      }
+      window._firestoreDb.collection("receipts").doc(kvittoNummer).set({
+        kvittoNummer,
+        datum: receipt.datum || "",
+        tid: receipt.tid || "",
+        betalning: "Swish",
+        status: receipt.status || "ej_registrerad",
+        produkter: (receipt.items || []).map(i => ({ namn: i.name, antal: i.qty, prisStyck: i.price, prisTotal: i.sum })),
+        totalSumma: receipt.total || 0,
+        tagg: receipt.tagType || null,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true }).catch(e => {
+        console.warn("Firestore receipt write failed, queuing for retry:", e);
+        const q = getReceiptQueue();
+        if (!q.some(r => r.id === receipt.id)) { q.push(receipt); saveReceiptQueue(q); }
+      });
+    }
+
+    // Retry-loop: skicka köade kvitton var 30:e sekund
+    let _receiptRetryInterval = null;
+    function startReceiptRetryLoop() {
+      if (_receiptRetryInterval) return;
+      _receiptRetryInterval = setInterval(() => {
         if (!window._firestoreDb) return;
-        const receipts = loadReceipts();
-        const r = receipts.find(rc => String(rc.id) === String(receiptId));
-        if (!r) return;
-        const prefix = (loadSettings().receiptPrefix) || "ZH";
-        const kvittoNummer = `${prefix}-${year}-${receiptId}`;
-        window._firestoreDb.collection("receipts").doc(kvittoNummer).set({
-          kvittoNummer,
-          datum: r.datum || "",
-          tid: r.tid || "",
-          betalning: "Swish",
-          status: r.status || "registrerad",
-          produkter: (r.items || []).map(i => ({ namn: i.name, antal: i.qty, prisStyck: i.price, prisTotal: i.sum })),
-          totalSumma: r.total || 0,
-          tagg: r.tagType || null,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        }).catch(e => console.warn("Firestore receipt write failed:", e));
-      }, 10000);
+        const q = getReceiptQueue();
+        if (!q.length) return;
+        // Töm kön och försök skriva alla
+        saveReceiptQueue([]);
+        q.forEach(receipt => writeReceiptToFirestore(receipt));
+      }, 30000);
     }
 
     // Gamla stubs (används fortfarande av saveCatalog etc.)
@@ -2455,50 +2504,56 @@
     function fbSyncSettings() { fsSyncConfig(); }
     function fbSyncPlain() {}
 
-    /* ── Firestore real-time lyssnare för kvitton ── */
+    /* ── Firestore real-time lyssnare för kvitton — Firestore är källan till sanning ── */
     let _firestoreUnsubscribe = null;
     function startFirestoreReceiptListener() {
       if (_firestoreUnsubscribe || !window._firestoreDb) return;
       _firestoreUnsubscribe = window._firestoreDb
         .collection("receipts")
         .onSnapshot((snapshot) => {
-          if (snapshot.empty) return;
-          const localReceipts = loadReceipts();
-          let changed = false;
+          // Bygg om hela localStorage-cachen från Firestore-data
+          const firestoreReceipts = [];
           snapshot.forEach(doc => {
             const fb = doc.data();
             if (!fb || !fb.kvittoNummer) return;
             const id = fb.kvittoNummer.split("-").pop();
-            const existing = localReceipts.find(r => String(r.id) === id);
-            if (existing) {
-              let updated = false;
-              if (fb.status && fb.status !== existing.status) { existing.status = fb.status; updated = true; }
-              if (fb.tagg !== undefined && fb.tagg !== existing.tagType) {
-                existing.tagged = !!fb.tagg; existing.tagType = fb.tagg || null; updated = true;
-              }
-              if (updated) changed = true;
-            } else {
-              localReceipts.push({
-                id,
-                status: fb.status || "registrerad",
-                time: fb.datum ? new Date(fb.datum.split("-").reverse().join("-")).toISOString() : new Date().toISOString(),
-                datum: fb.datum || "", tid: fb.tid || "",
-                items: (fb.produkter || []).map(p => ({ name: p.namn, qty: p.antal, price: p.prisStyck, sum: p.prisTotal })),
-                total: fb.totalSumma || 0,
-                tagged: !!fb.tagg, tagType: fb.tagg || null
-              });
-              changed = true;
-            }
+            firestoreReceipts.push({
+              id,
+              status: fb.status || "registrerad",
+              time: fb.datum ? new Date(fb.datum.split("-").reverse().join("-")).toISOString() : new Date().toISOString(),
+              datum: fb.datum || "", tid: fb.tid || "",
+              items: (fb.produkter || []).map(p => ({ name: p.namn, qty: p.antal, price: p.prisStyck, sum: p.prisTotal })),
+              total: fb.totalSumma || 0,
+              tagged: !!fb.tagg, tagType: fb.tagg || null
+            });
           });
-          if (!changed) return;
-          localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(localReceipts));
+
+          // Behåll lokala kvitton som inte finns i Firestore (offline-skapade)
+          const localReceipts = loadReceipts();
+          const fsIds = new Set(firestoreReceipts.map(r => String(r.id)));
+          const offlineOnly = localReceipts.filter(r => !fsIds.has(String(r.id)));
+
+          const merged = [...firestoreReceipts, ...offlineOnly];
+          localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(merged));
+
+          // Uppdatera öppna vyer
           try {
             const reportSection = document.getElementById("adminSectionReport");
             if (reportSection && reportSection.classList.contains("active")) renderReport(state.currentReportMode);
             const receiptsSection = document.getElementById("adminSectionReceipts");
             if (receiptsSection && receiptsSection.classList.contains("active")) renderReceiptsAdmin();
+            // Mobil admin vyer (bara om ingen modal är öppen)
+            const mobileContent = document.getElementById("mobileAdminContent");
+            if (mobileContent && mobileContent.style.display !== "none") {
+              const modalOpen = document.querySelector(".global-modal-overlay.active");
+              if (!modalOpen) {
+                const sec = mobileContent.dataset.section;
+                if (sec === "receipts") { try { openMobileAdminSection("receipts"); } catch(e2) {} }
+                if (sec === "report") { try { openMobileAdminSection("report"); } catch(e2) {} }
+              }
+            }
           } catch(e) {}
-        }, (err) => { console.warn("Firestore listener error:", err); });
+        }, (err) => { console.warn("Firestore receipt listener error:", err); });
     }
 
     // Lyssnare för config (katalog, lager, erbjudanden, inställningar)
@@ -2518,21 +2573,35 @@
           if (d.settings) {
             const localS = (() => { try { return JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY)||"{}"); } catch(e){return{};} })();
             const merged = { ...d.settings };
-            if (localS.password)      merged.password = localS.password;
-            if (localS.adminPassword) merged.adminPassword = localS.adminPassword;
+            // Bevara alla lokala känsliga fält
+            NEVER_SYNC_TO_FIRESTORE.forEach(k => { if (localS[k]) merged[k] = localS[k]; });
+            Object.keys(localS).forEach(k => { if (/pw|password|lösenord/i.test(k) && localS[k]) merged[k] = localS[k]; });
+            if (localS.swishNumber) merged.swishNumber = localS.swishNumber;
+            if (localS.notes !== undefined) merged.notes = localS.notes;
             localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(merged));
           }
           _fbSyncPaused = false;
-          // Re-render kiosk
+          // Re-render alla relevanta vyer
           try {
             categories = loadCatalog();
-            if (!IS_MOBILE_VIEW) { renderOverview(); renderCurrentCategory(); renderSummary(); }
-            else { renderMobileOverview(); renderMobileOffers(); }
+            if (!IS_MOBILE_VIEW) {
+              renderOverview();
+              renderCurrentCategory();
+              renderSummary();
+              // Uppdatera erbjudanden i kiosk-vyn
+              renderOffers();
+              // Uppdatera lager-editor om den är öppen
+              const invSection = document.getElementById("adminSectionInventory");
+              if (invSection && invSection.classList.contains("active")) renderInventoryEditor();
+            } else {
+              renderMobileOverview();
+              try { renderMobileOffers(); } catch(e2) {}
+            }
           } catch(e) {}
         }, (err) => { console.warn("Firestore config listener error:", err); });
     }
 
-    // Ladda från Firestore vid start
+    // Ladda från Firestore vid start — Firestore vinner alltid, 4s timeout → fallback localStorage
     async function loadFromFirestore() {
       if (!window._firestoreDb) return;
       try {
@@ -2550,8 +2619,11 @@
           if (d.settings) {
             const localS = (() => { try { return JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY)||"{}"); } catch(e){return{};} })();
             const merged = { ...d.settings };
-            if (localS.password)      merged.password = localS.password;
-            if (localS.adminPassword) merged.adminPassword = localS.adminPassword;
+            // Bevara alla lokala känsliga fält
+            NEVER_SYNC_TO_FIRESTORE.forEach(k => { if (localS[k]) merged[k] = localS[k]; });
+            Object.keys(localS).forEach(k => { if (/pw|password|lösenord/i.test(k) && localS[k]) merged[k] = localS[k]; });
+            if (localS.swishNumber) merged.swishNumber = localS.swishNumber;
+            if (localS.notes !== undefined) merged.notes = localS.notes;
             localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(merged));
           }
           _fbSyncPaused = false;
@@ -2762,9 +2834,14 @@
         // Uppdatera befintligt obekräftat kvitto → registrerad
         existing.status = "registrerad";
         localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-        // Schemalägg fördröjd push till Firebase (10 sek) — admin är källan
+        // Uppdatera status direkt i Firestore
         const year = new Date(existing.time).getFullYear();
-        scheduleReceiptFbPush(receiptId, year);
+        const kvittoNummer = getFullReceiptId(receiptId, year);
+        if (window._firestoreDb) {
+          window._firestoreDb.collection("receipts").doc(kvittoNummer)
+            .update({ status: "registrerad" })
+            .catch(() => writeReceiptToFirestore(existing));
+        }
         return;
       }
 
@@ -2785,7 +2862,7 @@
       };
       receipts.push(receipt);
       localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-      scheduleReceiptFbPush(receiptId, now.getFullYear());
+      writeReceiptToFirestore(receipt);
     }
 
     /* ── Inventory ── */
@@ -2816,12 +2893,7 @@
     function saveOffers(offers) {
       localStorage.setItem(OFFERS_STORAGE_KEY, JSON.stringify(offers));
       _localOffersSavedAt = Date.now();
-      // Spara till Firestore så det överlever omstarter
-      if (window._firestoreDb) {
-        window._firestoreDb.collection("kioskConfig").doc("zivert-holm").set(
-          { offers }, { merge: true }
-        ).catch(e => console.warn("Firestore offers write failed:", e));
-      }
+      fsSyncConfig();
     }
 
     /* ── Bubbla-inställningar ── */
@@ -2945,7 +3017,8 @@
     function formatKr(value) { return `${value} kr`; }
     function formatSwishAmount(value) { return Number(value).toFixed(2).replace(".", ","); }
     function buildSwishMessage(totalItems, receiptId) {
-      return `${SWISH_MESSAGE_PREFIX} ${totalItems} varor KV-${receiptId}`;
+      const fullId = getFullReceiptId(receiptId);
+      return `${SWISH_MESSAGE_PREFIX} ${totalItems} varor ${fullId}`;
     }
     function buildSwishPayload(amount, message) {
       const num = getEffectiveSwishNumber();
@@ -3378,8 +3451,8 @@
       if (!receipts.some(r => String(r.id) === String(receiptId))) {
         receipts.push(pendingReceipt);
         localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-        // Schemalägg fördröjd push till Firebase (10 sek) — admin är källan
-        scheduleReceiptFbPush(receiptId, now.getFullYear());
+        // Skriv DIREKT till Firestore (ingen delay)
+        writeReceiptToFirestore(pendingReceipt);
       }
 
       const message = buildSwishMessage(totalItems, receiptId);
@@ -3548,8 +3621,8 @@
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
           if (window._firestoreDb) {
             const year = new Date(removed.time).getFullYear();
-            const prefix = (loadSettings().receiptPrefix) || "ZH";
-            window._firestoreDb.collection("receipts").doc(`${prefix}-${year}-${state.currentReceiptId}`).delete().catch(() => {});
+            const docId = getFullReceiptId(state.currentReceiptId, year);
+            window._firestoreDb.collection("receipts").doc(docId).delete().catch(() => {});
           }
         }
         state.currentReceiptId = null;
@@ -4959,10 +5032,9 @@
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
           // Registrera försäljningen med kvitto-ID
           recordSale(r.items.map(i => ({ ...i, categoryKey: i.categoryKey || "", categoryTitle: i.categoryTitle || "", itemId: i.itemId || "", sum: i.sum || i.qty * i.price })), r.id);
-          if (window._firestoreDb && !_fbSyncPaused) {
+          if (window._firestoreDb) {
             const year = new Date(r.time).getFullYear();
-            const prefix = (loadSettings().receiptPrefix) || "ZH";
-            const kvittoNummer = `${prefix}-${year}-${receiptId}`;
+            const kvittoNummer = getFullReceiptId(receiptId, year);
             window._firestoreDb.collection("receipts").doc(kvittoNummer).update({ status: "registrerad" }).catch(() => {});
           }
           await showGlobalModal({ title: "✓ Bekräftat", subtitle: `Kvitto #${receiptId} bekräftat.`, type: "confirm", confirmLabel: "OK" });
@@ -4977,9 +5049,13 @@
           const ok = await showGlobalModal({ title: "Radera", subtitle: `Radera oregistrerat kvitto #${receiptId}?`, type: "confirm", confirmLabel: "Radera" });
           if (!ok) return;
           let receipts = loadReceipts();
+          const deleted = receipts.find(r => String(r.id) === String(receiptId));
           receipts = receipts.filter(r => String(r.id) !== String(receiptId));
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-          fbSyncAfterSave(RECEIPT_STORAGE_KEY);
+          if (window._firestoreDb && deleted) {
+            const year = new Date(deleted.time).getFullYear();
+            window._firestoreDb.collection("receipts").doc(getFullReceiptId(receiptId, year)).delete().catch(() => {});
+          }
           renderReceiptsAdmin();
         });
       });
@@ -5032,7 +5108,8 @@
             if (ids.has(r.id)) { r.tagged = true; r.tagType = tagId; }
           });
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-          fbSyncAfterSave(RECEIPT_STORAGE_KEY);
+          // Synka varje taggat kvitto till Firestore
+          ids.forEach(id => fbUpdateReceiptTag(id, tagId));
           renderReceiptsAdmin();
         });
       });
@@ -5067,7 +5144,6 @@
           }
 
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-          fbSyncAfterSave(RECEIPT_STORAGE_KEY);
           // Uppdatera tagg i Firebase per-kvitto
           fbUpdateReceiptTag(r.id, r.tagType);
           renderReceiptsAdmin();
@@ -5094,8 +5170,7 @@
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
           if (window._firestoreDb && deleted) {
             const year = new Date(deleted.time).getFullYear();
-            const prefix = (loadSettings().receiptPrefix) || "ZH";
-            window._firestoreDb.collection("receipts").doc(`${prefix}-${year}-${receiptId}`).delete().catch(() => {});
+            window._firestoreDb.collection("receipts").doc(getFullReceiptId(receiptId, year)).delete().catch(() => {});
           }
           renderReceiptsAdmin();
         });
@@ -5122,10 +5197,9 @@
           const filtered = receipts.filter(r => r.tagType !== tagId);
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(filtered));
           if (window._firestoreDb) {
-            const prefix = (loadSettings().receiptPrefix) || "ZH";
             toDelete.forEach(r => {
               const year = new Date(r.time).getFullYear();
-              window._firestoreDb.collection("receipts").doc(`${prefix}-${year}-${r.id}`).delete().catch(() => {});
+              window._firestoreDb.collection("receipts").doc(getFullReceiptId(r.id, year)).delete().catch(() => {});
             });
           }
           renderReceiptsAdmin();
@@ -5133,15 +5207,14 @@
       });
     }
 
-    // Synka tagg till Firestore per-kvitto
+    // Synka tagg till Firestore per-kvitto — _fbSyncPaused påverkar INTE kvitton
     function fbUpdateReceiptTag(receiptId, tagType) {
-      if (!window._firestoreDb || _fbSyncPaused) return;
+      if (!window._firestoreDb) return;
       const receipts = loadReceipts();
       const r = receipts.find(r => String(r.id) === String(receiptId));
       if (!r) return;
       const year = new Date(r.time).getFullYear();
-      const prefix = (loadSettings().receiptPrefix) || "ZH";
-      const kvittoNummer = `${prefix}-${year}-${receiptId}`;
+      const kvittoNummer = getFullReceiptId(receiptId, year);
       window._firestoreDb.collection("receipts").doc(kvittoNummer).update({ tagg: tagType || null }).catch(() => {});
     }
 
@@ -5527,6 +5600,7 @@
       const content = document.getElementById("mobileAdminContent");
       content.style.display = "block";
       content.className = "mobile-admin-view";
+      content.dataset.section = section;
       window.scrollTo(0, 0);
       history.pushState({ view: "mobileAdminSection", section }, "", window.location.href);
 
@@ -5562,6 +5636,7 @@
       const content = document.getElementById("mobileAdminContent");
       content.style.display = "none";
       content.innerHTML = "";
+      delete content.dataset.section;
       window.scrollTo(0, 0);
     }
 
@@ -6079,12 +6154,10 @@
               if (!r) return;
               r.status = "registrerad";
               localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-              fbSyncAfterSave(RECEIPT_STORAGE_KEY);
               recordSale(r.items.map(i => ({ ...i, categoryKey: i.categoryKey || "", categoryTitle: i.categoryTitle || "", itemId: i.itemId || "", sum: i.sum || i.qty * i.price })), r.id);
-              if (window._firestoreDb && !_fbSyncPaused) {
+              if (window._firestoreDb) {
                 const year = new Date(r.time).getFullYear();
-                const prefix = (loadSettings().receiptPrefix) || "ZH";
-                const kvittoNummer = `${prefix}-${year}-${receiptId}`;
+                const kvittoNummer = getFullReceiptId(receiptId, year);
                 window._firestoreDb.collection("receipts").doc(kvittoNummer).update({ status: "registrerad" }).catch(() => {});
               }
               await showGlobalModal({ title: "✓ Bekräftat", subtitle: `Kvitto #${receiptId} bekräftat.`, type: "confirm", confirmLabel: "OK" });
@@ -6098,9 +6171,13 @@
               const ok = await showGlobalModal({ title: "Radera", subtitle: `Radera oregistrerat kvitto #${receiptId}?`, type: "confirm", confirmLabel: "Radera" });
               if (!ok) return;
               let receipts = loadReceipts();
+              const deleted = receipts.find(r => String(r.id) === String(receiptId));
               receipts = receipts.filter(r => String(r.id) !== String(receiptId));
               localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-              fbSyncAfterSave(RECEIPT_STORAGE_KEY);
+              if (window._firestoreDb && deleted) {
+                const year = new Date(deleted.time).getFullYear();
+                window._firestoreDb.collection("receipts").doc(getFullReceiptId(receiptId, year)).delete().catch(() => {});
+              }
               openMobileAdminSection("receipts");
             });
           });
@@ -6117,7 +6194,6 @@
               r.tagType = r.tagType === tagId ? null : tagId;
               r.tagged = !!r.tagType;
               localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-              fbSyncAfterSave(RECEIPT_STORAGE_KEY);
               fbUpdateReceiptTag(r.id, r.tagType);
               openMobileAdminSection("receipts");
             });
@@ -6136,8 +6212,7 @@
               localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
               if (window._firestoreDb && deleted) {
                 const year = new Date(deleted.time).getFullYear();
-                const prefix = (loadSettings().receiptPrefix) || "ZH";
-                window._firestoreDb.collection("receipts").doc(`${prefix}-${year}-${receiptId}`).delete().catch(() => {});
+                window._firestoreDb.collection("receipts").doc(getFullReceiptId(receiptId, year)).delete().catch(() => {});
               }
               openMobileAdminSection("receipts");
             });
@@ -6158,10 +6233,9 @@
               const filtered = receipts.filter(r => r.tagType !== tagId);
               localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(filtered));
               if (window._firestoreDb) {
-                const prefix = (loadSettings().receiptPrefix) || "ZH";
                 toDelete.forEach(r => {
                   const year = new Date(r.time).getFullYear();
-                  window._firestoreDb.collection("receipts").doc(`${prefix}-${year}-${r.id}`).delete().catch(() => {});
+                  window._firestoreDb.collection("receipts").doc(getFullReceiptId(r.id, year)).delete().catch(() => {});
                 });
               }
               openMobileAdminSection("receipts");
@@ -6441,9 +6515,8 @@
 
     /* ── Bootstrap ── */
     async function bootstrap() {
-      // 1. Om localStorage är tomt (ny enhet) — ladda från Firestore som backup
-      const hasLocalData = !!localStorage.getItem(CATALOG_STORAGE_KEY);
-      if (!hasLocalData) await loadFromFirestore();
+      // 1. Firestore är källan — ladda ALLTID vid start (timeout 4s → fallback localStorage)
+      await loadFromFirestore();
       _fbReady = true;
 
       // 2. Ladda katalog och rendera
@@ -6453,8 +6526,12 @@
       renderSummary();
       openOverview();
 
-      // 3. Starta Firestore kvitto-lyssnare (backup — lägger bara till kvitton som saknas lokalt)
+      // 3. Starta BÅDA Firestore-lyssnarna
+      startFirestoreConfigListener();
       startFirestoreReceiptListener();
+
+      // 4. Starta offline kvitto-retry
+      startReceiptRetryLoop();
 
       if (IS_MOBILE_VIEW) {
         document.getElementById("mobileApp").style.display = "block";
