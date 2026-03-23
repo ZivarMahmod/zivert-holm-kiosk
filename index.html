@@ -2389,6 +2389,7 @@
     const RENSA_PW_KEY = "zivert-holm-rensa-pw-v1";
     const DEFAULT_RENSA_PW = "123456";
     const BUBBLA_STORAGE_KEY = "zivert-holm-bubbla-v1";
+    const REPORT_CLEARED_KEY = "zivert-holm-report-cleared-v1";
     const VAJL_KNAPP_STORAGE_KEY = "zivert-holm-vajl-knapp-v1";
     const IS_MOBILE_VIEW = window.location.search.includes("mobile") || window.innerWidth < 768;
 
@@ -2474,7 +2475,7 @@
         tid: receipt.tid || "",
         betalning: "Swish",
         status: receipt.status || "ej_registrerad",
-        produkter: (receipt.items || []).map(i => ({ namn: i.name, antal: i.qty, prisStyck: i.price, prisTotal: i.sum })),
+        produkter: (receipt.items || []).map(i => ({ namn: i.name, antal: i.qty, prisStyck: i.price, prisTotal: i.sum, kategoriNyckel: i.categoryKey || "", kategoriTitel: i.categoryTitle || "" })),
         totalSumma: receipt.total || 0,
         tagg: receipt.tagType || null,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -2536,7 +2537,8 @@
               datum: fb.datum || "",
               tid: fb.tid || "",
               items: (fb.produkter || []).map(p => ({
-                name: p.namn, qty: p.antal, price: p.prisStyck, sum: p.prisTotal
+                name: p.namn, qty: p.antal, price: p.prisStyck, sum: p.prisTotal,
+                categoryKey: p.kategoriNyckel || "", categoryTitle: p.kategoriTitel || ""
               })),
               total: fb.totalSumma || 0,
               tagged: !!fb.tagg,
@@ -2703,7 +2705,8 @@
             datum: d.datum || "",
             tid: d.tid || "",
             items: (d.produkter || []).map(p => ({
-              name: p.namn, qty: p.antal, price: p.prisStyck, sum: p.prisTotal
+              name: p.namn, qty: p.antal, price: p.prisStyck, sum: p.prisTotal,
+              categoryKey: p.kategoriNyckel || "", categoryTitle: p.kategoriTitel || ""
             })),
             total: d.totalSumma || 0,
             tagged: !!d.tagg,
@@ -3750,11 +3753,17 @@
     // Rapport byggs från kvitton (Firestore-synkade) — samma data på alla enheter
     function getFilteredReceipts(mode) {
       const receipts = loadReceipts();
+      // Rensad-datum: "Senaste 7 dagar" respekterar det, "Denna vecka"/"All data" ignorerar det
+      const clearedIso = localStorage.getItem(REPORT_CLEARED_KEY);
+      const clearedDate = clearedIso ? new Date(clearedIso) : null;
+      const useCleared = clearedDate && (mode === "7days" || mode === "today" || mode === "yesterday" || mode === "month");
       // Bara registrerade kvitton utan tagg
       return receipts.filter(r => {
         if (r.status === "ej_registrerad") return false;
         if (r.tagType) return false;
-        return passesTimeFilter(new Date(r.time), mode);
+        const t = new Date(r.time);
+        if (useCleared && t < clearedDate) return false;
+        return passesTimeFilter(t, mode);
       });
     }
     function aggregateSalesByProduct(receipts) {
@@ -3812,7 +3821,14 @@
     }
     function getReceiptTagSummary(mode) {
       const receipts = loadReceipts().filter(r => r.status !== "ej_registrerad");
-      const filtered = receipts.filter(r => passesTimeFilter(new Date(r.time), mode));
+      const clearedIso = localStorage.getItem(REPORT_CLEARED_KEY);
+      const clearedDate = clearedIso ? new Date(clearedIso) : null;
+      const useCleared = clearedDate && (mode === "7days" || mode === "today" || mode === "yesterday" || mode === "month");
+      const filtered = receipts.filter(r => {
+        const t = new Date(r.time);
+        if (useCleared && t < clearedDate) return false;
+        return passesTimeFilter(t, mode);
+      });
 
       // Build dynamic tag summary
       const tags = loadTags();
@@ -3857,10 +3873,15 @@
     // Räkna registrerade köp direkt från kvitton (utan tagg, registrerad/gammal)
     function getRegisteredReceiptStats(mode) {
       const receipts = loadReceipts();
+      const clearedIso = localStorage.getItem(REPORT_CLEARED_KEY);
+      const clearedDate = clearedIso ? new Date(clearedIso) : null;
+      const useCleared = clearedDate && (mode === "7days" || mode === "today" || mode === "yesterday" || mode === "month");
       const filtered = receipts.filter(r => {
         if (r.tagType) return false;
         if (r.status === "ej_registrerad") return false;
-        return passesTimeFilter(new Date(r.time), mode);
+        const t = new Date(r.time);
+        if (useCleared && t < clearedDate) return false;
+        return passesTimeFilter(t, mode);
       });
 
       let totalItems = 0, totalValue = 0;
@@ -3895,9 +3916,14 @@
       if (reportTagStatsEl) {
         // Räkna ej registrerade kvitton i valt tidsintervall
         const allReceipts = loadReceipts();
+        const _clearedIso = localStorage.getItem(REPORT_CLEARED_KEY);
+        const _clearedDate = _clearedIso ? new Date(_clearedIso) : null;
+        const _useCleared = _clearedDate && (mode === "7days" || mode === "today" || mode === "yesterday" || mode === "month");
         const unregFiltered = allReceipts.filter(r => {
           if (r.status !== "ej_registrerad") return false;
-          return passesTimeFilter(new Date(r.time), mode);
+          const t = new Date(r.time);
+          if (_useCleared && t < _clearedDate) return false;
+          return passesTimeFilter(t, mode);
         });
         const unregCount = unregFiltered.length;
         const unregValue = unregFiltered.reduce((s, r) => s + Number(r.total || 0), 0);
@@ -4000,8 +4026,9 @@
         await showGlobalModal({ title: "Fel lösenord", subtitle: "Försök igen.", type: "confirm", confirmLabel: "OK" });
         return;
       }
-      localStorage.removeItem(SALES_STORAGE_KEY);
-      localStorage.setItem(RECEIPT_COUNTER_KEY, "0");
+      // Spara rensad-datum — rapport visar bara kvitton efter detta datum
+      // Data finns kvar i Firestore för vecko-/månadsrapporter
+      localStorage.setItem(REPORT_CLEARED_KEY, new Date().toISOString());
       renderReport(state.currentReportMode);
     }
 
@@ -6064,6 +6091,7 @@
               await showGlobalModal({ title: "Fel lösenord", subtitle: "Försök igen.", type: "confirm", confirmLabel: "OK" });
               return;
             }
+            localStorage.setItem(REPORT_CLEARED_KEY, new Date().toISOString());
             openMobileAdminSection("report");
           });
           const copyBtn = document.getElementById("mavCopyReport");
