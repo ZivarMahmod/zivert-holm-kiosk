@@ -2506,11 +2506,13 @@
 
     /* ── Firestore real-time lyssnare för kvitton — Firestore är källan till sanning ── */
     let _firestoreUnsubscribe = null;
+    let _receiptListenerPaused = false;
     function startFirestoreReceiptListener() {
       if (_firestoreUnsubscribe || !window._firestoreDb) return;
       _firestoreUnsubscribe = window._firestoreDb
         .collection("receipts")
         .onSnapshot((snapshot) => {
+          if (_receiptListenerPaused) return;
           // Bygg om hela localStorage-cachen från Firestore-data
           const firestoreReceipts = [];
           snapshot.forEach(doc => {
@@ -5229,14 +5231,10 @@
           const receiptId = btn.dataset.receiptId;
           const pw = await showGlobalModal({ title: "Lösenord", subtitle: `Radera kvitto #${receiptId}?`, type: "password", confirmLabel: "Radera" });
           if (pw === null) return;
-          if (pw !== getReceiptDeletePassword()) {
-            document.getElementById("globalModalError").textContent = "Fel lösenord.";
-            return;
-          }
-          closeGlobalModal();
-          // Återställ försäljning och stock
+          if (pw !== getReceiptDeletePassword()) return;
+          // Pausa lyssnaren så den inte skriver tillbaka raderat kvitto
+          _receiptListenerPaused = true;
           unrecordSale(receiptId);
-          // Ta bort kvittot
           let receipts = loadReceipts();
           const deleted = receipts.find(r => String(r.id) === String(receiptId));
           receipts = receipts.filter(r => String(r.id) !== String(receiptId));
@@ -5246,6 +5244,7 @@
             window._firestoreDb.collection("receipts").doc(getFullReceiptId(receiptId, year)).delete().catch(() => {});
           }
           renderReceiptsAdmin();
+          setTimeout(() => { _receiptListenerPaused = false; }, 2000);
         });
       });
 
@@ -5259,13 +5258,10 @@
           const count = receipts.filter(r => r.tagType === tagId).length;
           const pw = await showGlobalModal({ title: "Lösenord", subtitle: `Radera ${count} kvitton med taggen "${tagLabel}"?`, type: "password", confirmLabel: "Radera alla" });
           if (pw === null) return;
-          if (pw !== getReceiptDeletePassword()) {
-            document.getElementById("globalModalError").textContent = "Fel lösenord.";
-            return;
-          }
-          closeGlobalModal();
+          if (pw !== getReceiptDeletePassword()) return;
+          // Pausa lyssnaren så den inte skriver tillbaka raderade kvitton
+          _receiptListenerPaused = true;
           const toDelete = receipts.filter(r => r.tagType === tagId);
-          // Återställ försäljning och stock för alla raderade
           toDelete.forEach(r => unrecordSale(r.id));
           const filtered = receipts.filter(r => r.tagType !== tagId);
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(filtered));
@@ -5276,6 +5272,7 @@
             });
           }
           renderReceiptsAdmin();
+          setTimeout(() => { _receiptListenerPaused = false; }, 2000);
         });
       });
     }
@@ -6275,7 +6272,7 @@
               const receiptId = btn.dataset.receipt;
               const pw = await showGlobalModal({ title: "Lösenord", subtitle: `Radera kvitto #${receiptId}?`, type: "password", confirmLabel: "Radera" });
               if (pw !== getReceiptDeletePassword()) return;
-              // Återställ försäljning och stock
+              _receiptListenerPaused = true;
               unrecordSale(receiptId);
               let receipts = loadReceipts();
               const deleted = receipts.find(r => String(r.id) === String(receiptId));
@@ -6286,6 +6283,7 @@
                 window._firestoreDb.collection("receipts").doc(getFullReceiptId(receiptId, year)).delete().catch(() => {});
               }
               openMobileAdminSection("receipts");
+              setTimeout(() => { _receiptListenerPaused = false; }, 2000);
             });
           });
           // Radera alla med en viss tagg
@@ -6298,8 +6296,8 @@
               const count = receipts.filter(r => r.tagType === tagId).length;
               const pw = await showGlobalModal({ title: "Lösenord", subtitle: `Radera ${count} kvitton med taggen "${tagLabel}"?`, type: "password", confirmLabel: "Radera alla" });
               if (pw !== getReceiptDeletePassword()) return;
+              _receiptListenerPaused = true;
               const toDelete = receipts.filter(r => r.tagType === tagId);
-              // Återställ försäljning och stock för alla raderade
               toDelete.forEach(r => unrecordSale(r.id));
               const filtered = receipts.filter(r => r.tagType !== tagId);
               localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(filtered));
@@ -6310,6 +6308,7 @@
                 });
               }
               openMobileAdminSection("receipts");
+              setTimeout(() => { _receiptListenerPaused = false; }, 2000);
             });
           });
           break;
