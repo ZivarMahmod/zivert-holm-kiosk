@@ -11,16 +11,16 @@
   <meta name="apple-mobile-web-app-title" content="ZH Kiosk" />
   <style>
     :root {
-      --bg: linear-gradient(160deg, #f0f7f4 0%, #e8f4f8 50%, #f5f0eb 100%);
-      --surface: rgba(0,0,0,.03);
-      --surface-hover: rgba(0,0,0,.06);
+      --bg: linear-gradient(160deg, #fdf6e3 0%, #fef9ef 50%, #fff8e7 100%);
+      --surface: rgba(0,0,0,.02);
+      --surface-hover: rgba(0,0,0,.05);
       --border: rgba(0,0,0,.06);
-      --text: #2c3e35;
-      --text-muted: #6b7c74;
-      --accent: #5b8fa8;
-      --accent2: #c47a3a;
-      --highlight: rgba(91,143,168,.12);
-      --shadow: 0 2px 12px rgba(0,0,0,.08);
+      --text: #2d2a26;
+      --text-muted: #8a8478;
+      --accent: #e8a838;
+      --accent2: #d4872e;
+      --highlight: rgba(232,168,56,.12);
+      --shadow: 0 4px 20px rgba(0,0,0,.06);
     }
 
     @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
@@ -38,7 +38,7 @@
       overflow: hidden;
       font-family: Georgia, "Times New Roman", serif;
       color: var(--text);
-      background: #e8f0ec;
+      background: #f0c84a;
     }
     body {
       display: flex;
@@ -56,13 +56,7 @@
       align-items: center;
       justify-content: center;
       overflow: hidden;
-      background-image:
-        linear-gradient(rgba(255,255,255,0.82), rgba(255,255,255,0.82)),
-        url('images/backgrund.png');
-      background-size: cover;
-      background-position: center;
-      background-repeat: no-repeat;
-      background-attachment: fixed;
+      background: linear-gradient(145deg, #f5c842 0%, #e8b84b 40%, #f0c84a 100%);
     }
     .stage {
       width: 1920px; height: 1080px;
@@ -77,27 +71,26 @@
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      background: linear-gradient(160deg, #f0f7f4 0%, #e8f4f8 50%, #f5f0eb 100%);
+      background: #fafaf7;
+      border-radius: 24px;
       position: relative;
     }
 
     /* ── Orbs ── */
     .orb{position:absolute;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:0;}
-    .orb1{width:500px;height:500px;background:rgba(91,143,168,.08);top:-100px;right:100px;}
-    .orb2{width:350px;height:350px;background:rgba(180,200,180,.1);bottom:-80px;left:150px;}
-    .orb3{width:250px;height:250px;background:rgba(196,122,58,.06);top:200px;left:300px;}
+    .orb1{width:500px;height:500px;background:rgba(240,190,60,.07);top:-100px;right:100px;}
+    .orb2{width:350px;height:350px;background:rgba(232,168,56,.06);bottom:-80px;left:150px;}
+    .orb3{width:250px;height:250px;background:rgba(212,135,46,.05);top:200px;left:300px;}
 
     /* ── Top bar ── */
     .top-bar {
-      height: 52px;
-      background: rgba(255,255,255,.7);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border-bottom: 1px solid rgba(0,0,0,.06);
+      height: 56px;
+      background: #ffffff;
+      border-bottom: 1px solid rgba(0,0,0,.05);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 28px;
+      padding: 0 32px;
       flex-shrink: 0;
       position: relative;
       z-index: 2;
@@ -105,13 +98,13 @@
     .top-bar-title {
       font-size: 38px;
       font-style: italic;
-      color: #2c3e35;
+      color: #2d2a26;
       line-height: 1;
       letter-spacing: .2px;
     }
     .top-bar-hint {
       font-size: 14px;
-      color: #6b7c74;
+      color: #8a8478;
       letter-spacing: 2px;
       text-transform: uppercase;
     }
@@ -150,7 +143,7 @@
     .section-label {
       font-size: 14px;
       letter-spacing: 2px;
-      color: #6b7c74;
+      color: #8a8478;
       text-transform: uppercase;
       margin: 0 0 14px;
     }
@@ -158,7 +151,7 @@
       margin: 0 0 16px;
       font-size: 52px;
       font-style: italic;
-      color: #2c3e35;
+      color: #2d2a26;
       line-height: 1;
     }
 
@@ -169,24 +162,26 @@
       gap: 16px;
     }
     .category-card {
-      border-radius: 20px;
+      border-radius: 22px;
       position: relative;
       overflow: hidden;
       min-height: 180px;
-      padding: 20px;
+      padding: 22px;
       display: flex;
       flex-direction: column;
       justify-content: flex-end;
       cursor: pointer;
       text-align: left;
-      color: #2c3e35;
-      border: 1px solid rgba(0,0,0,.06);
-      box-shadow: 0 2px 12px rgba(0,0,0,.08);
-      transition: transform .2s ease, box-shadow .2s ease;
+      color: #2d2a26;
+      background: #ffffff;
+      border: 1px solid rgba(0,0,0,.04);
+      box-shadow: 0 4px 20px rgba(0,0,0,.06);
+      transition: transform .2s ease, box-shadow .2s ease, border-color .2s;
     }
     .category-card:hover {
       transform: scale(1.03);
-      box-shadow: 0 12px 32px rgba(0,0,0,.12);
+      box-shadow: 0 12px 32px rgba(232,168,56,.18);
+      border-color: rgba(232,168,56,.3);
     }
     .category-card:active {
       transform: scale(.98);
@@ -195,28 +190,28 @@
       position: absolute;
       top: 14px;
       right: 18px;
-      font-size: 52px;
+      font-size: 56px;
       line-height: 1;
-      opacity: .6;
+      opacity: .7;
       animation: float 3s ease-in-out infinite;
     }
     .category-card-name {
       margin: 0;
       font-size: 36px;
       font-style: italic;
-      color: #2c3e35;
+      color: #2d2a26;
       line-height: 1.05;
     }
     .category-card-sub {
       margin: 6px 0 0;
       font-size: 18px;
-      color: #6b7c74;
+      color: #8a8478;
       line-height: 1.2;
     }
     .category-card-count {
       margin-top: 8px;
       font-size: 14px;
-      color: #8a9b93;
+      color: #b0a898;
       letter-spacing: 1px;
       text-transform: uppercase;
     }
@@ -232,31 +227,31 @@
     .offer-card {
       position: relative;
       overflow: hidden;
-      background: #fdf8f0;
-      border: 1px solid #e8c87a;
-      border-radius: 14px;
-      padding: 16px 20px;
+      background: linear-gradient(135deg, #fef9ef 0%, #fdf3dc 100%);
+      border: 1px solid rgba(232,168,56,.25);
+      border-radius: 20px;
+      padding: 18px 22px;
       display: flex;
       align-items: center;
       gap: 16px;
-      box-shadow: 0 2px 8px rgba(0,0,0,.05);
+      box-shadow: 0 4px 16px rgba(232,168,56,.1);
     }
     .offer-card::after {
       content: "";
       position: absolute;
       inset: 0;
-      background: linear-gradient(90deg,transparent,rgba(232,200,122,.06),transparent);
+      background: linear-gradient(90deg,transparent,rgba(232,200,122,.08),transparent);
       background-size: 400px 100%;
       animation: shimmer 3s infinite;
       pointer-events: none;
     }
     .offer-pill {
-      background: rgba(196,122,58,.15);
-      color: #c47a3a;
+      background: rgba(232,168,56,.15);
+      color: #d4872e;
       font-size: 13px;
       letter-spacing: 1.5px;
       text-transform: uppercase;
-      border-radius: 8px;
+      border-radius: 10px;
       padding: 6px 12px;
       white-space: nowrap;
       flex-shrink: 0;
@@ -294,8 +289,8 @@
 
     /* Erbjudande välj-knapp */
     .erbjudande-välj-knapp {
-      background: linear-gradient(135deg, #72383D, #8B4449);
-      color: #EFE9E1;
+      background: linear-gradient(135deg, #e8a838, #d4872e);
+      color: #ffffff;
       border: none;
       border-radius: 14px;
       padding: 14px 28px;
@@ -303,14 +298,14 @@
       font-size: 18px;
       font-weight: bold;
       cursor: pointer;
-      box-shadow: 0 4px 15px rgba(114,56,61,0.4);
+      box-shadow: 0 4px 15px rgba(212,135,46,0.35);
       transition: transform 0.15s, box-shadow 0.15s;
       white-space: nowrap;
       flex-shrink: 0;
     }
     .erbjudande-välj-knapp:hover {
       transform: scale(1.05);
-      box-shadow: 0 6px 20px rgba(114,56,61,0.5);
+      box-shadow: 0 6px 20px rgba(212,135,46,0.45);
     }
     .erbjudande-välj-knapp:active {
       transform: scale(0.97);
@@ -399,11 +394,11 @@
       flex-shrink: 0;
       box-shadow: 0 2px 8px rgba(0,0,0,.06);
     }
-    .back-btn:hover { background: #f0f4f2; }
+    .back-btn:hover { background: #faf6ee; }
     .category-heading {
       font-size: 48px;
       font-style: italic;
-      color: #2c3e35;
+      color: #2d2a26;
       margin: 0;
       line-height: 1;
     }
@@ -419,28 +414,34 @@
     }
     .product-card {
       background: #ffffff;
-      border: 1px solid rgba(0,0,0,.06);
-      box-shadow: 0 2px 12px rgba(0,0,0,.08);
-      border-radius: 16px;
+      border: 1px solid rgba(0,0,0,.04);
+      box-shadow: 0 4px 20px rgba(0,0,0,.06);
+      border-radius: 20px;
       overflow: hidden;
       animation: fadeSlideIn 0.3s ease both;
       display: flex;
       flex-direction: column;
+      transition: box-shadow .2s, border-color .2s;
+    }
+    .product-card:hover {
+      box-shadow: 0 8px 28px rgba(232,168,56,.15);
+      border-color: rgba(232,168,56,.2);
     }
     .product-img-box {
-      height: 100px;
-      background: transparent;
+      height: 110px;
+      background: rgba(250,248,240,.6);
       display: flex;
       align-items: center;
       justify-content: center;
+      border-radius: 16px 16px 0 0;
     }
     .product-img-box img {
-      height: 80px;
+      height: 88px;
       width: auto;
       object-fit: contain;
       display: block;
       animation: float 3s ease-in-out infinite;
-      filter: drop-shadow(0 4px 12px rgba(0,0,0,.15));
+      filter: drop-shadow(0 4px 12px rgba(0,0,0,.12));
     }
     .product-img-box .product-fallback-emoji {
       font-size: 48px;
@@ -455,20 +456,20 @@
     .product-name {
       font-size: 20px;
       font-weight: 700;
-      color: #2c3e35;
+      color: #2d2a26;
       margin: 0;
       line-height: 1.15;
     }
     .product-price {
       font-size: 17px;
-      font-style: italic;
-      color: #c47a3a;
+      font-weight: 700;
+      color: #d4872e;
       margin: 4px 0 0;
     }
     .product-note {
       font-size: 14px;
       font-style: italic;
-      color: #8a9b93;
+      color: #b0a898;
       margin-top: 3px;
     }
     .qty-row {
@@ -481,10 +482,10 @@
     .qty-btn {
       width: 44px; height: 44px;
       min-width: 44px; min-height: 44px;
-      background: rgba(91,143,168,.12);
-      border: 2px solid rgba(91,143,168,.3);
-      color: #5b8fa8;
-      border-radius: 10px;
+      background: rgba(232,168,56,.12);
+      border: 2px solid rgba(232,168,56,.3);
+      color: #d4872e;
+      border-radius: 12px;
       font-size: 28px;
       line-height: 1;
       cursor: pointer;
@@ -494,7 +495,7 @@
       padding: 0;
       transition: background .12s;
     }
-    .qty-btn:hover { background: rgba(91,143,168,.2); }
+    .qty-btn:hover { background: rgba(232,168,56,.22); }
     .qty-btn:active { opacity: .8; }
     .qty-val {
       font-size: 24px;
@@ -511,10 +512,8 @@
 
     /* ── Cart panel ── */
     .cart-panel {
-      background: rgba(255,255,255,.75);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      border-left: 1px solid rgba(0,0,0,.06);
+      background: #ffffff;
+      border-left: 1px solid rgba(0,0,0,.05);
       display: flex;
       flex-direction: column;
       min-height: 0;
@@ -571,21 +570,21 @@
       padding-top: 8px;
     }
     .pay-btn {
-      background: linear-gradient(135deg, #72383D, #8B4449);
-      color: #EFE9E1;
+      background: linear-gradient(135deg, #e8a838, #d4872e);
+      color: #ffffff;
       border: none;
-      border-radius: 12px;
+      border-radius: 14px;
       font-size: 26px;
       font-weight: 700;
       cursor: pointer;
       padding: 14px;
       width: 100%;
-      box-shadow: 0 4px 15px rgba(114,56,61,0.4);
-      transition: opacity .12s;
+      box-shadow: 0 4px 15px rgba(212,135,46,0.35);
+      transition: opacity .12s, transform .12s;
       letter-spacing: 1px;
     }
     .pay-btn:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; }
-    .pay-btn:not(:disabled):hover { opacity: .88; }
+    .pay-btn:not(:disabled):hover { opacity: .9; transform: translateY(-1px); }
     .clear-btn {
       background: transparent;
       border: 1px solid #D1C7BD;
@@ -2785,10 +2784,10 @@
     };
 
     const CATEGORY_GRADIENTS = {
-      dryck:     "#c8dff0",
-      snacks:    "#b8d4c8",
-      mellanmal: "#e8d5b0",
-      mat:       "#e8c4b8"
+      dryck:     "#fff5e0",
+      snacks:    "#fef0d5",
+      mellanmal: "#fdecc8",
+      mat:       "#fce8be"
     };
 
     /* ── Default categories ── */
