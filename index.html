@@ -2424,8 +2424,9 @@
 
     // Spara config-data (katalog, lager, erbjudanden, inställningar) till Firestore
     // _fbSyncPaused påverkar BARA denna funktion, aldrig kvitton
+    let _firestoreLoadedOnce = false; // Förhindra att default-data skriver över Firestore
     function fsSyncConfig() {
-      if (!window._firestoreDb || _fbSyncPaused) return;
+      if (!window._firestoreDb || _fbSyncPaused || !_firestoreLoadedOnce) return;
       try {
         const catalog  = JSON.parse(localStorage.getItem(CATALOG_STORAGE_KEY)  || "[]");
         const inventory= JSON.parse(localStorage.getItem(INVENTORY_STORAGE_KEY)|| "{}");
@@ -6587,6 +6588,7 @@
       // 3. Firestore är källan — ladda ALLTID vid start (timeout 4s → fallback localStorage)
       await loadFromFirestore();
       _fbReady = true;
+      _firestoreLoadedOnce = true; // Nu är det säkert att synka till Firestore
 
       // 4. Ladda katalog
       categories = loadCatalog();
