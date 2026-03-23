@@ -3930,7 +3930,8 @@
         await showGlobalModal({ title: "Fel lösenord", subtitle: "Försök igen.", type: "confirm", confirmLabel: "OK" });
         return;
       }
-      // Rapport byggs nu från kvitton — inget att rensa
+      localStorage.removeItem(SALES_STORAGE_KEY);
+      localStorage.setItem(RECEIPT_COUNTER_KEY, "0");
       renderReport(state.currentReportMode);
     }
 
