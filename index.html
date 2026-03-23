@@ -5184,53 +5184,26 @@
         updateBulkBtns();
       });
 
-      // Bulk tag buttons (dynamic)
+      // Bulk tag buttons (dynamic) — inget lösenord
       document.querySelectorAll(".bulk-tag-btn").forEach(btn => {
-        btn.addEventListener("click", async () => {
+        btn.addEventListener("click", () => {
           const tagId = btn.dataset.bulkTag;
-          const tagDef = getTagDef(tagId);
           const checked = Array.from(document.querySelectorAll(".receipt-checkbox:checked"));
           if (!checked.length) return;
-          const pw = await showGlobalModal({
-            title: "Kvitto-lösenord",
-            subtitle: `Tagga ${checked.length} kvitto(n) som ${tagDef ? tagDef.label : tagId}.`,
-            type: "password",
-            confirmLabel: "Bekräfta"
-          });
-          if (pw === null) return;
-          if (pw !== getReceiptDeletePassword()) {
-            document.getElementById("globalModalError").textContent = "Fel lösenord.";
-            return;
-          }
-          closeGlobalModal();
           const receipts = loadReceipts();
           const ids = new Set(checked.map(cb => cb.dataset.receiptId));
           receipts.forEach(r => {
             if (ids.has(r.id)) { r.tagged = true; r.tagType = tagId; }
           });
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-          // Synka varje taggat kvitto till Firestore
           ids.forEach(id => fbUpdateReceiptTag(id, tagId));
           renderReceiptsAdmin();
         });
       });
 
-      // Enskild tagg-knapp
+      // Enskild tagg-knapp — inget lösenord
       list.querySelectorAll("[data-receipt-tag]").forEach(btn => {
-        btn.addEventListener("click", async () => {
-          const pw = await showGlobalModal({
-            title: "Kvitto-lösenord",
-            subtitle: "Ange lösenord för att ändra tagg.",
-            type: "password",
-            confirmLabel: "Bekräfta"
-          });
-          if (pw === null) return;
-          if (pw !== getReceiptDeletePassword()) {
-            document.getElementById("globalModalError").textContent = "Fel lösenord.";
-            return;
-          }
-          closeGlobalModal();
-
+        btn.addEventListener("click", () => {
           const receipts = loadReceipts();
           const r = receipts.find(r => r.id === btn.dataset.receiptTag);
           if (!r) return;
@@ -5245,7 +5218,6 @@
           }
 
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-          // Uppdatera tagg i Firebase per-kvitto
           fbUpdateReceiptTag(r.id, r.tagType);
           renderReceiptsAdmin();
         });
@@ -6284,14 +6256,12 @@
           });
           // Tagga kvitto
           document.querySelectorAll(".mav-tag-btn").forEach(btn => {
-            btn.addEventListener("click", async () => {
+            btn.addEventListener("click", () => {
               const receiptId = btn.dataset.receipt;
               const tagId = btn.dataset.tag;
               const receipts = loadReceipts();
               const r = receipts.find(r => String(r.id) === String(receiptId));
               if (!r) return;
-              const pw = await showGlobalModal({ title: "Lösenord", subtitle: `Tagga kvitto #${receiptId}`, type: "password", confirmLabel: "OK" });
-              if (pw !== getReceiptDeletePassword()) return;
               r.tagType = r.tagType === tagId ? null : tagId;
               r.tagged = !!r.tagType;
               localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
