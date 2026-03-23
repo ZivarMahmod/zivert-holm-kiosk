@@ -3524,39 +3524,15 @@
       }, 15000);
     }
 
-    /* ── Sales storage (never touch) ── */
-    function loadSales() {
-      try {
-        const raw = localStorage.getItem(SALES_STORAGE_KEY);
-        const parsed = raw ? JSON.parse(raw) : [];
-        return Array.isArray(parsed) ? parsed : [];
-      } catch (e) { return []; }
-    }
-    function saveSales(sales) {
-      localStorage.setItem(SALES_STORAGE_KEY, JSON.stringify(sales));
-      fbSyncAfterSave(SALES_STORAGE_KEY);
-    }
+    /* ── Sales / inventory helpers ── */
+    // recordSale: minskar BARA lager — rapporten byggs från kvitton (Firestore-synkade)
     function recordSale(cart, receiptId) {
       if (!cart.length) return;
-      const sales = loadSales();
-      sales.push({
-        receiptId: receiptId ? String(receiptId) : null,
-        time: new Date().toISOString(),
-        items: cart.map(it => ({
-          categoryKey: it.categoryKey, categoryTitle: it.categoryTitle,
-          itemId: it.itemId, name: it.name, qty: it.qty, price: it.price,
-          ärErbjudande: it.ärErbjudande || false,
-          produkter: it.produkter || []
-        })),
-        total: cart.reduce((s, it) => s + it.sum, 0)
-      });
-      saveSales(sales);
 
       // Minska stock i inventory
       const inv = loadInventory();
       cart.forEach(item => {
         if (item.ärErbjudande && item.produkter) {
-          // För erbjudanden: dra från varje produkt i paketet
           item.produkter.forEach(prod => {
             const prodKey = prod.namn;
             if (inv[prodKey] && typeof inv[prodKey] === "object" && typeof inv[prodKey].stock === "number") {
@@ -3564,7 +3540,6 @@
             }
           });
         } else {
-          // För vanliga varor
           const key = item.name;
           if (inv[key] && typeof inv[key] === "object" && typeof inv[key].stock === "number") {
             inv[key].stock = Math.max(0, inv[key].stock - item.qty);
@@ -3574,17 +3549,13 @@
       saveInventory(inv);
     }
 
-    // Återställ försäljning och stock när ett kvitto raderas
+    // Återställ stock när ett kvitto raderas (läser items från kvittot)
     function unrecordSale(receiptId) {
-      const sales = loadSales();
-      const idx = sales.findIndex(s => s.receiptId === String(receiptId));
-      if (idx === -1) return;
-      const sale = sales[idx];
-      sales.splice(idx, 1);
-      saveSales(sales);
-      // Återställ stock
+      const receipts = loadReceipts();
+      const r = receipts.find(r => String(r.id) === String(receiptId));
+      if (!r) return;
       const inv = loadInventory();
-      (sale.items || []).forEach(item => {
+      (r.items || []).forEach(item => {
         if (item.ärErbjudande && item.produkter) {
           item.produkter.forEach(prod => {
             const prodKey = prod.namn;
@@ -3609,7 +3580,6 @@
       renderCurrentCategory();
     }
     function closePaymentModal({ recordSaleOnClose = false } = {}) {
-      if (recordSaleOnClose) recordSale(getCart());
       if (state.paymentTimer) clearTimeout(state.paymentTimer);
       if (state.paymentInterval) clearInterval(state.paymentInterval);
       // Ta bort kvittot om det aldrig registrerades (avbruten eller timeout)
@@ -3673,16 +3643,22 @@
       d.setHours(0, 0, 0, 0);
       return d;
     }
-    function getFilteredSales(mode) {
-      const sales = loadSales();
-      return sales.filter(sale => passesTimeFilter(new Date(sale.time), mode));
+    // Rapport byggs från kvitton (Firestore-synkade) — samma data på alla enheter
+    function getFilteredReceipts(mode) {
+      const receipts = loadReceipts();
+      // Bara registrerade kvitton utan tagg
+      return receipts.filter(r => {
+        if (r.status === "ej_registrerad") return false;
+        if (r.tagType) return false;
+        return passesTimeFilter(new Date(r.time), mode);
+      });
     }
-    function aggregateSalesByProduct(sales) {
+    function aggregateSalesByProduct(receipts) {
       const byCategory = new Map();
-      let totalTransactions = sales.length, totalItems = 0, totalValue = 0;
-      sales.forEach(sale => {
-        totalValue += Number(sale.total || 0);
-        (sale.items || []).forEach(item => {
+      let totalTransactions = receipts.length, totalItems = 0, totalValue = 0;
+      receipts.forEach(r => {
+        totalValue += Number(r.total || 0);
+        (r.items || []).forEach(item => {
           totalItems += Number(item.qty || 0);
           const ct = item.categoryTitle || "Okänd kategori";
           const pn = item.name || "Okänd produkt";
@@ -3796,8 +3772,8 @@
 
     function renderReport(mode) {
       state.currentReportMode = mode;
-      const sales = getFilteredSales(mode);
-      const agg = aggregateSalesByProduct(sales);
+      const filteredReceipts = getFilteredReceipts(mode);
+      const agg = aggregateSalesByProduct(filteredReceipts);
       const title = getModeTitle(mode);
       const tags = getReceiptTagSummary(mode);
 
@@ -3920,10 +3896,7 @@
         await showGlobalModal({ title: "Fel lösenord", subtitle: "Försök igen.", type: "confirm", confirmLabel: "OK" });
         return;
       }
-      _fbSyncPaused = true;
-      localStorage.removeItem(SALES_STORAGE_KEY);
-      // Reports are local only — admin portal manages its own data
-      _fbSyncPaused = false;
+      // Rapport byggs nu från kvitton — inget att rensa
       renderReport(state.currentReportMode);
     }
 
@@ -4450,7 +4423,6 @@
 
         // Radera lokalt
         localStorage.removeItem(RECEIPT_STORAGE_KEY);
-        localStorage.removeItem(SALES_STORAGE_KEY);
         localStorage.removeItem(RECEIPT_COUNTER_KEY);
         localStorage.setItem(NOLLA_ALLT_KEY, "true");
 
@@ -5030,8 +5002,6 @@
           if (!r) return;
           r.status = "registrerad";
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-          // Registrera försäljningen med kvitto-ID
-          recordSale(r.items.map(i => ({ ...i, categoryKey: i.categoryKey || "", categoryTitle: i.categoryTitle || "", itemId: i.itemId || "", sum: i.sum || i.qty * i.price })), r.id);
           if (window._firestoreDb) {
             const year = new Date(r.time).getFullYear();
             const kvittoNummer = getFullReceiptId(receiptId, year);
@@ -5647,7 +5617,7 @@
         { key: "week", label: "Vecka" }, { key: "month", label: "Månad" }, { key: "all", label: "Allt" }
       ];
       const mode = state.currentReportMode || "today";
-      const sales = getFilteredSales(mode);
+      const sales = getFilteredReceipts(mode);
       const agg = aggregateSalesByProduct(sales);
       const tags = getReceiptTagSummary(mode);
 
@@ -5990,12 +5960,12 @@
               await showGlobalModal({ title: "Fel lösenord", subtitle: "Försök igen.", type: "confirm", confirmLabel: "OK" });
               return;
             }
-            localStorage.removeItem(SALES_STORAGE_KEY); fbWrite("rapport", null); openMobileAdminSection("report");
+            openMobileAdminSection("report");
           });
           const copyBtn = document.getElementById("mavCopyReport");
           if (copyBtn) copyBtn.addEventListener("click", async () => {
             const mode = state.currentReportMode || "today";
-            const sales = getFilteredSales(mode);
+            const sales = getFilteredReceipts(mode);
             const agg = aggregateSalesByProduct(sales);
             const title = getModeTitle(mode);
             const text = buildReportText(title, agg);
@@ -6154,7 +6124,6 @@
               if (!r) return;
               r.status = "registrerad";
               localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-              recordSale(r.items.map(i => ({ ...i, categoryKey: i.categoryKey || "", categoryTitle: i.categoryTitle || "", itemId: i.itemId || "", sum: i.sum || i.qty * i.price })), r.id);
               if (window._firestoreDb) {
                 const year = new Date(r.time).getFullYear();
                 const kvittoNummer = getFullReceiptId(receiptId, year);
@@ -6268,10 +6237,8 @@
             });
             if (!ok) return;
             localStorage.removeItem(RECEIPT_STORAGE_KEY);
-            localStorage.removeItem(SALES_STORAGE_KEY);
             localStorage.removeItem(RECEIPT_COUNTER_KEY);
             fbWrite("kvitton", null);
-            fbWrite("rapport", null);
             fbWrite("receiptCounter", null);
             localStorage.setItem(NOLLA_ALLT_KEY, "true");
             fbWrite("nolladAllt", true);
