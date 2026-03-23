@@ -5225,13 +5225,10 @@
         });
       });
 
-      // Radera enskilt taggat kvitto
+      // Radera enskilt taggat kvitto — inget lösenord
       list.querySelectorAll(".desktop-delete-receipt-btn").forEach(btn => {
-        btn.addEventListener("click", async () => {
+        btn.addEventListener("click", () => {
           const receiptId = btn.dataset.receiptId;
-          const pw = await showGlobalModal({ title: "Lösenord", subtitle: `Radera kvitto #${receiptId}?`, type: "password", confirmLabel: "Radera" });
-          if (pw === null) return;
-          if (pw !== getReceiptDeletePassword()) return;
           // Pausa lyssnaren så den inte skriver tillbaka raderat kvitto
           _receiptListenerPaused = true;
           unrecordSale(receiptId);
@@ -5248,22 +5245,16 @@
         });
       });
 
-      // Radera alla kvitton med en viss tagg
+      // Radera alla kvitton med en viss tagg — inget lösenord
       list.querySelectorAll(".desktop-delete-tag-group-btn").forEach(btn => {
-        btn.addEventListener("click", async () => {
+        btn.addEventListener("click", () => {
           const tagId = btn.dataset.tagId;
-          const tagDef = getTagDef(tagId);
-          const tagLabel = tagDef ? tagDef.label : tagId;
-          const receipts = loadReceipts();
-          const count = receipts.filter(r => r.tagType === tagId).length;
-          const pw = await showGlobalModal({ title: "Lösenord", subtitle: `Radera ${count} kvitton med taggen "${tagLabel}"?`, type: "password", confirmLabel: "Radera alla" });
-          if (pw === null) return;
-          if (pw !== getReceiptDeletePassword()) return;
           // Pausa lyssnaren så den inte skriver tillbaka raderade kvitton
           _receiptListenerPaused = true;
-          const toDelete = receipts.filter(r => r.tagType === tagId);
+          const allR = loadReceipts();
+          const toDelete = allR.filter(r => r.tagType === tagId);
           toDelete.forEach(r => unrecordSale(r.id));
-          const filtered = receipts.filter(r => r.tagType !== tagId);
+          const filtered = allR.filter(r => r.tagType !== tagId);
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(filtered));
           if (window._firestoreDb) {
             toDelete.forEach(r => {
@@ -6266,12 +6257,10 @@
               openMobileAdminSection("receipts");
             });
           });
-          // Radera enskilt kvitto
+          // Radera enskilt kvitto — inget lösenord
           document.querySelectorAll(".mav-delete-receipt-btn").forEach(btn => {
-            btn.addEventListener("click", async () => {
+            btn.addEventListener("click", () => {
               const receiptId = btn.dataset.receipt;
-              const pw = await showGlobalModal({ title: "Lösenord", subtitle: `Radera kvitto #${receiptId}?`, type: "password", confirmLabel: "Radera" });
-              if (pw !== getReceiptDeletePassword()) return;
               _receiptListenerPaused = true;
               unrecordSale(receiptId);
               let receipts = loadReceipts();
@@ -6286,17 +6275,12 @@
               setTimeout(() => { _receiptListenerPaused = false; }, 2000);
             });
           });
-          // Radera alla med en viss tagg
+          // Radera alla med en viss tagg — inget lösenord
           document.querySelectorAll(".mav-delete-tag-group-btn").forEach(btn => {
-            btn.addEventListener("click", async () => {
+            btn.addEventListener("click", () => {
               const tagId = btn.dataset.tag;
-              const tagDef = getTagDef(tagId);
-              const tagLabel = tagDef ? tagDef.label : tagId;
-              const receipts = loadReceipts();
-              const count = receipts.filter(r => r.tagType === tagId).length;
-              const pw = await showGlobalModal({ title: "Lösenord", subtitle: `Radera ${count} kvitton med taggen "${tagLabel}"?`, type: "password", confirmLabel: "Radera alla" });
-              if (pw !== getReceiptDeletePassword()) return;
               _receiptListenerPaused = true;
+              const receipts = loadReceipts();
               const toDelete = receipts.filter(r => r.tagType === tagId);
               toDelete.forEach(r => unrecordSale(r.id));
               const filtered = receipts.filter(r => r.tagType !== tagId);
