@@ -6585,6 +6585,12 @@
       // 2. Rensa gammal sales-logg (rapport byggs från kvitton nu)
       localStorage.removeItem(SALES_STORAGE_KEY);
 
+      // 2b. Rensa lokal cache så Firestore blir enda källan
+      localStorage.removeItem(CATALOG_STORAGE_KEY);
+      localStorage.removeItem(OFFERS_STORAGE_KEY);
+      localStorage.removeItem(INVENTORY_STORAGE_KEY);
+      localStorage.removeItem(TAGS_STORAGE_KEY);
+
       // 3. Firestore är källan — ladda ALLTID vid start (timeout 4s → fallback localStorage)
       await loadFromFirestore();
       _fbReady = true;
