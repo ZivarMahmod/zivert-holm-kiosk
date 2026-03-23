@@ -2514,44 +2514,74 @@
           const firestoreReceipts = [];
           snapshot.forEach(doc => {
             const fb = doc.data();
-            if (!fb || !fb.kvittoNummer) return;
-            const id = fb.kvittoNummer.split("-").pop();
+            if (!fb) return;
+            const kvNr = fb.kvittoNummer || doc.id || "";
+            const shortId = kvNr.includes("-") ? kvNr.split("-").pop() : kvNr;
+            if (!shortId) return;
+            // Robust tidshantering för alla datumformat
+            let timeIso = new Date().toISOString();
+            if (fb.datum && fb.tid) {
+              try {
+                const parts = fb.datum.split("-");
+                const isoDate = parts[0].length === 4 ? fb.datum : parts.reverse().join("-");
+                timeIso = new Date(isoDate + "T" + fb.tid).toISOString();
+              } catch(e2) {}
+            } else if (fb.createdAt) {
+              try { timeIso = fb.createdAt.toDate().toISOString(); } catch(e2) {}
+            }
             firestoreReceipts.push({
-              id,
+              id: shortId,
               status: fb.status || "registrerad",
-              time: fb.datum ? new Date(fb.datum.split("-").reverse().join("-")).toISOString() : new Date().toISOString(),
-              datum: fb.datum || "", tid: fb.tid || "",
-              items: (fb.produkter || []).map(p => ({ name: p.namn, qty: p.antal, price: p.prisStyck, sum: p.prisTotal })),
+              time: timeIso,
+              datum: fb.datum || "",
+              tid: fb.tid || "",
+              items: (fb.produkter || []).map(p => ({
+                name: p.namn, qty: p.antal, price: p.prisStyck, sum: p.prisTotal
+              })),
               total: fb.totalSumma || 0,
-              tagged: !!fb.tagg, tagType: fb.tagg || null
+              tagged: !!fb.tagg,
+              tagType: fb.tagg || null
             });
           });
 
           // Behåll lokala kvitton som inte finns i Firestore (offline-skapade)
           const localReceipts = loadReceipts();
-          const fsIds = new Set(firestoreReceipts.map(r => String(r.id)));
-          const offlineOnly = localReceipts.filter(r => !fsIds.has(String(r.id)));
+          // Normalisera ID till kortformat för pålitlig jämförelse
+          const fsIds = new Set(firestoreReceipts.map(r => {
+            const s = String(r.id); return s.includes("-") ? s.split("-").pop() : s;
+          }));
+          const offlineOnly = localReceipts.filter(r => {
+            const s = String(r.id); const short = s.includes("-") ? s.split("-").pop() : s;
+            return !fsIds.has(short);
+          });
 
           const merged = [...firestoreReceipts, ...offlineOnly];
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(merged));
 
-          // Uppdatera öppna vyer
+          // Uppdatera öppna vyer — alltid efter Firestore-sync
           try {
             const reportSection = document.getElementById("adminSectionReport");
-            if (reportSection && reportSection.classList.contains("active")) renderReport(state.currentReportMode);
+            if (reportSection && reportSection.classList.contains("active")) {
+              renderReport(state.currentReportMode);
+            }
             const receiptsSection = document.getElementById("adminSectionReceipts");
-            if (receiptsSection && receiptsSection.classList.contains("active")) renderReceiptsAdmin();
-            // Mobil admin vyer (bara om ingen modal är öppen)
+            if (receiptsSection && receiptsSection.classList.contains("active")) {
+              renderReceiptsAdmin();
+            }
+            // Mobil admin vyer — kontrollera att ingen modal är öppen
             const mobileContent = document.getElementById("mobileAdminContent");
             if (mobileContent && mobileContent.style.display !== "none") {
-              const modalOpen = document.querySelector(".global-modal-overlay.active");
+              const globalModal = document.getElementById("globalModalOverlay");
+              const modalOpen = globalModal && globalModal.style.display !== "none";
               if (!modalOpen) {
                 const sec = mobileContent.dataset.section;
                 if (sec === "receipts") { try { openMobileAdminSection("receipts"); } catch(e2) {} }
                 if (sec === "report") { try { openMobileAdminSection("report"); } catch(e2) {} }
               }
             }
-          } catch(e) {}
+          } catch(e) {
+            console.warn("Re-render after Firestore sync failed:", e);
+          }
         }, (err) => { console.warn("Firestore receipt listener error:", err); });
     }
 
@@ -2652,13 +2682,29 @@
         const receipts = [];
         receiptSnap.forEach(doc => {
           const d = doc.data();
+          // Extrahera kort-ID (sista segmentet av "ZH-2025-0042" → "0042")
+          const kvNr = d.kvittoNummer || doc.id || "";
+          const shortId = kvNr.includes("-") ? kvNr.split("-").pop() : kvNr;
+          // Hantera datumformat: "DD-MM-YYYY", "YYYY-MM-DD" och toLocaleDateString
+          let timeIso = new Date().toISOString();
+          if (d.datum && d.tid) {
+            try {
+              const parts = d.datum.split("-");
+              const isoDate = parts[0].length === 4 ? d.datum : parts.reverse().join("-");
+              timeIso = new Date(isoDate + "T" + d.tid).toISOString();
+            } catch(e2) {}
+          } else if (d.createdAt) {
+            try { timeIso = d.createdAt.toDate().toISOString(); } catch(e2) {}
+          }
           receipts.push({
-            id: d.kvittoNummer || doc.id,
+            id: shortId,
             status: d.status || "registrerad",
-            time: d.datum && d.tid ? new Date(d.datum + "T" + d.tid).toISOString() : (d.createdAt ? d.createdAt.toDate().toISOString() : new Date().toISOString()),
+            time: timeIso,
             datum: d.datum || "",
             tid: d.tid || "",
-            items: d.produkter || [],
+            items: (d.produkter || []).map(p => ({
+              name: p.namn, qty: p.antal, price: p.prisStyck, sum: p.prisTotal
+            })),
             total: d.totalSumma || 0,
             tagged: !!d.tagg,
             tagType: d.tagg || null
@@ -2857,9 +2903,28 @@
 
     /* ── Receipt ID ── */
     async function getNextReceiptId() {
-      // Use localStorage counter (admin portal is source of truth for data)
-      let current = parseInt(localStorage.getItem(RECEIPT_COUNTER_KEY) || "0");
-      current = (current >= 1000) ? 1 : current + 1;
+      // Atomär Firestore-räknare — garanterar unika nummer på alla enheter
+      if (window._firestoreDb) {
+        try {
+          const counterRef = window._firestoreDb.collection("counters").doc("receipts");
+          const newId = await window._firestoreDb.runTransaction(async (tx) => {
+            const doc = await tx.get(counterRef);
+            let current = doc.exists ? (doc.data().current || 41) : 41;
+            if (current >= 9999) current = 1;
+            const next = current + 1;
+            tx.set(counterRef, { current: next }, { merge: true });
+            return next;
+          });
+          localStorage.setItem(RECEIPT_COUNTER_KEY, String(newId));
+          return String(newId).padStart(4, "0");
+        } catch (e) {
+          console.warn("Firestore counter failed, using local fallback:", e);
+        }
+      }
+      // Lokalt fallback vid offline
+      let current = parseInt(localStorage.getItem(RECEIPT_COUNTER_KEY) || "41");
+      if (current >= 9999) current = 1;
+      current += 1;
       localStorage.setItem(RECEIPT_COUNTER_KEY, String(current));
       return String(current).padStart(4, "0");
     }
@@ -2872,7 +2937,12 @@
     }
     async function saveReceipt(receiptId, cart, total) {
       const receipts = loadReceipts();
-      const existing = receipts.find(r => String(r.id) === String(receiptId));
+      // Hantera både kortformat ("0042") och långformat ("ZH-2025-0042")
+      const _shortReceiptId = String(receiptId).includes("-") ? String(receiptId).split("-").pop() : String(receiptId);
+      const existing = receipts.find(r => {
+        const rShort = String(r.id).includes("-") ? String(r.id).split("-").pop() : String(r.id);
+        return rShort === _shortReceiptId;
+      });
 
       if (existing) {
         // Uppdatera befintligt obekräftat kvitto → registrerad
@@ -6513,10 +6583,21 @@
 
     /* ── Bootstrap ── */
     async function bootstrap() {
-      // 1. Sätt receiptCounter till minst 41 (migration från Realtime Database)
+      // 1. Lokalt fallback-counter — Firestore-transaktionen hanterar det verkliga numret
       const currentCounter = parseInt(localStorage.getItem(RECEIPT_COUNTER_KEY) || "0");
       if (currentCounter < 41) {
         localStorage.setItem(RECEIPT_COUNTER_KEY, "41");
+      }
+      // Initiera Firestore-counter vid start om den saknas (icke-blockerande)
+      if (window._firestoreDb) {
+        window._firestoreDb.collection("counters").doc("receipts").get().then(doc => {
+          if (!doc.exists) {
+            const localVal = parseInt(localStorage.getItem(RECEIPT_COUNTER_KEY) || "41");
+            window._firestoreDb.collection("counters").doc("receipts")
+              .set({ current: Math.max(41, localVal) }, { merge: true })
+              .catch(e => console.warn("Counter init failed:", e));
+          }
+        }).catch(e => console.warn("Counter check failed:", e));
       }
 
       // 2. Rensa gammal sales-logg (rapport byggs från kvitton nu)
