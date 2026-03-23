@@ -3626,19 +3626,9 @@
     function closePaymentModal({ recordSaleOnClose = false } = {}) {
       if (state.paymentTimer) clearTimeout(state.paymentTimer);
       if (state.paymentInterval) clearInterval(state.paymentInterval);
-      // Ta bort kvittot om det aldrig registrerades (avbruten eller timeout)
+      // Kvittot bevaras alltid i Firestore med status "ej_registrerad"
+      // Admin kan bekräfta eller radera manuellt i kvitto-vyn
       if (state.currentReceiptId) {
-        const receipts = loadReceipts();
-        const idx = receipts.findIndex(r => String(r.id) === String(state.currentReceiptId) && r.status === "ej_registrerad");
-        if (idx !== -1) {
-          const [removed] = receipts.splice(idx, 1);
-          localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
-          if (window._firestoreDb) {
-            const year = new Date(removed.time).getFullYear();
-            const docId = getFullReceiptId(state.currentReceiptId, year);
-            window._firestoreDb.collection("receipts").doc(docId).delete().catch(() => {});
-          }
-        }
         state.currentReceiptId = null;
         state.currentCart = [];
       }
