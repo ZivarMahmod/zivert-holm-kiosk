@@ -2560,8 +2560,12 @@
           const merged = [...firestoreReceipts, ...offlineOnly];
           localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(merged));
 
-          // Uppdatera öppna vyer — alltid efter Firestore-sync
+          // Uppdatera öppna vyer — men INTE om en modal är öppen (lösenord etc.)
           try {
+            const globalModal = document.getElementById("globalModalOverlay");
+            const modalOpen = globalModal && globalModal.style.display !== "none";
+            if (modalOpen) return; // Vänta — re-render sker efter modal stängs
+
             const reportSection = document.getElementById("adminSectionReport");
             if (reportSection && reportSection.classList.contains("active")) {
               renderReport(state.currentReportMode);
@@ -2570,16 +2574,12 @@
             if (receiptsSection && receiptsSection.classList.contains("active")) {
               renderReceiptsAdmin();
             }
-            // Mobil admin vyer — kontrollera att ingen modal är öppen
+            // Mobil admin vyer
             const mobileContent = document.getElementById("mobileAdminContent");
             if (mobileContent && mobileContent.style.display !== "none") {
-              const globalModal = document.getElementById("globalModalOverlay");
-              const modalOpen = globalModal && globalModal.style.display !== "none";
-              if (!modalOpen) {
-                const sec = mobileContent.dataset.section;
-                if (sec === "receipts") { try { openMobileAdminSection("receipts"); } catch(e2) {} }
-                if (sec === "report") { try { openMobileAdminSection("report"); } catch(e2) {} }
-              }
+              const sec = mobileContent.dataset.section;
+              if (sec === "receipts") { try { openMobileAdminSection("receipts"); } catch(e2) {} }
+              if (sec === "report") { try { openMobileAdminSection("report"); } catch(e2) {} }
             }
           } catch(e) {
             console.warn("Re-render after Firestore sync failed:", e);
