@@ -6639,6 +6639,59 @@
       categories = loadCatalog();
       cleanupQtyState();
 
+      // 4b. Migrera kvitton — fyll i saknad categoryTitle från katalogen
+      try {
+        const allReceipts = loadReceipts();
+        let changed = false;
+        // Bygg produktnamn → kategori-lookup från katalogen
+        const nameToCat = {};
+        categories.forEach(cat => {
+          (cat.items || []).forEach(item => {
+            nameToCat[item.name] = { categoryKey: cat.key, categoryTitle: cat.title };
+          });
+        });
+        allReceipts.forEach(r => {
+          // Fixa ID-format: om ID innehåller "-", extrahera kort-ID
+          if (String(r.id).includes("-")) {
+            r.id = String(r.id).split("-").pop();
+            changed = true;
+          }
+          (r.items || []).forEach(item => {
+            if (!item.categoryTitle && item.name && nameToCat[item.name]) {
+              item.categoryKey = nameToCat[item.name].categoryKey;
+              item.categoryTitle = nameToCat[item.name].categoryTitle;
+              changed = true;
+            }
+            // Fixa items-format från Firestore (namn→name, antal→qty, etc.)
+            if (item.namn && !item.name) { item.name = item.namn; changed = true; }
+            if (item.antal != null && item.qty == null) { item.qty = item.antal; changed = true; }
+            if (item.prisStyck != null && item.price == null) { item.price = item.prisStyck; changed = true; }
+            if (item.prisTotal != null && item.sum == null) { item.sum = item.prisTotal; changed = true; }
+          });
+        });
+        if (changed) {
+          localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(allReceipts));
+          console.log("Migrerade kvitton: fixade ID-format och categoryTitle");
+          // Uppdatera Firestore med kategori-info (icke-blockerande)
+          if (window._firestoreDb) {
+            allReceipts.forEach(r => {
+              if (!r.id || r.status === "ej_registrerad") return;
+              const year = new Date(r.time).getFullYear();
+              const kvittoNummer = `ZH-${year}-${String(r.id).padStart(4, "0")}`;
+              window._firestoreDb.collection("receipts").doc(kvittoNummer).update({
+                produkter: (r.items || []).map(i => ({
+                  namn: i.name, antal: i.qty, prisStyck: i.price, prisTotal: i.sum,
+                  kategoriNyckel: i.categoryKey || "", kategoriTitel: i.categoryTitle || ""
+                }))
+              }).catch(() => {}); // Ignorera fel (kvitto kanske inte finns i Firestore)
+            });
+          }
+        }
+      } catch(e) { console.warn("Receipt migration failed:", e); }
+
+      // Rensa eventuellt gammal rensad-datum (ny dag = fresh start)
+      localStorage.removeItem(REPORT_CLEARED_KEY);
+
       // 5. Starta BÅDA Firestore-lyssnarna
       startFirestoreConfigListener();
       startFirestoreReceiptListener();
