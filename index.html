@@ -2353,7 +2353,6 @@
     const _firebaseApp = firebase.initializeApp({
       apiKey: "AIzaSyCjLMN3qVOyn0M5Eu7P0EtA9rnqzAto5Zw",
       authDomain: "zivert-holm.firebaseapp.com",
-      databaseURL: "https://zivert-holm-default-rtdb.europe-west1.firebasedatabase.app",
       projectId: "zivert-holm",
       storageBucket: "zivert-holm.firebasestorage.app",
       messagingSenderId: "1078871076184",
@@ -2434,8 +2433,10 @@
         const settings = filterSettingsForFirestore(
           JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}")
         );
+        const bubblaInstallningar = JSON.parse(localStorage.getItem(BUBBLA_STORAGE_KEY) || "{}");
+        const valjKnappInstallningar = JSON.parse(localStorage.getItem(VAJL_KNAPP_STORAGE_KEY) || "{}");
         window._firestoreDb.collection("config").doc(FS_CONFIG_DOC).set(
-          { catalog, inventory, offers, tags, settings },
+          { catalog, inventory, offers, tags, settings, bubblaInstallningar, valjKnappInstallningar },
           { merge: true }
         ).catch(e => console.warn("Firestore config write failed:", e));
       } catch(e) {}
@@ -2498,11 +2499,9 @@
       }, 30000);
     }
 
-    // Gamla stubs (används fortfarande av saveCatalog etc.)
-    function fbWrite() {}
+    // Synk-alias (saveCatalog, saveTags etc. anropar dessa)
     function fbSyncAfterSave() { fsSyncConfig(); }
     function fbSyncSettings() { fsSyncConfig(); }
-    function fbSyncPlain() {}
 
     /* ── Firestore real-time lyssnare för kvitton — Firestore är källan till sanning ── */
     let _firestoreUnsubscribe = null;
@@ -2570,6 +2569,8 @@
           if (d.inventory) localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(d.inventory));
           if (d.offers)    localStorage.setItem(OFFERS_STORAGE_KEY,     JSON.stringify(d.offers));
           if (d.tags)      localStorage.setItem(TAGS_STORAGE_KEY,       JSON.stringify(d.tags));
+          if (d.bubblaInstallningar) localStorage.setItem(BUBBLA_STORAGE_KEY, JSON.stringify(d.bubblaInstallningar));
+          if (d.valjKnappInstallningar) localStorage.setItem(VAJL_KNAPP_STORAGE_KEY, JSON.stringify(d.valjKnappInstallningar));
           if (d.settings) {
             const localS = (() => { try { return JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY)||"{}"); } catch(e){return{};} })();
             const merged = { ...d.settings };
@@ -2633,6 +2634,8 @@
           if (d.inventory) localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(d.inventory));
           if (d.offers)    localStorage.setItem(OFFERS_STORAGE_KEY,     JSON.stringify(d.offers));
           if (d.tags)      localStorage.setItem(TAGS_STORAGE_KEY,       JSON.stringify(d.tags));
+          if (d.bubblaInstallningar) localStorage.setItem(BUBBLA_STORAGE_KEY, JSON.stringify(d.bubblaInstallningar));
+          if (d.valjKnappInstallningar) localStorage.setItem(VAJL_KNAPP_STORAGE_KEY, JSON.stringify(d.valjKnappInstallningar));
           if (d.settings) {
             const localS = (() => { try { return JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY)||"{}"); } catch(e){return{};} })();
             const merged = { ...d.settings };
@@ -4830,7 +4833,6 @@
 
     document.getElementById("clearWishesBtn").addEventListener("click", () => {
       localStorage.removeItem(WISHES_STORAGE_KEY);
-      fbWrite("onskningar", null);
       renderWishes();
     });
 
@@ -6150,7 +6152,7 @@
           const clearW = document.getElementById("mavClearWishes");
           if (clearW) clearW.addEventListener("click", async () => {
             const ok = await showGlobalModal({ title: "Rensa önskningar", subtitle: "Vill du ta bort alla önskningar?", type: "confirm", confirmLabel: "Rensa" });
-            if (ok) { localStorage.removeItem(WISHES_STORAGE_KEY); fbWrite("onskningar", null); openMobileAdminSection("wishes"); }
+            if (ok) { localStorage.removeItem(WISHES_STORAGE_KEY); openMobileAdminSection("wishes"); }
           });
           break;
         }
@@ -6279,10 +6281,7 @@
             if (!ok) return;
             localStorage.removeItem(RECEIPT_STORAGE_KEY);
             localStorage.removeItem(RECEIPT_COUNTER_KEY);
-            fbWrite("kvitton", null);
-            fbWrite("receiptCounter", null);
             localStorage.setItem(NOLLA_ALLT_KEY, "true");
-            fbWrite("nolladAllt", true);
             showGlobalModal({ title: "Klart!", subtitle: "All kvitto- och rapportdata har raderats.", type: "confirm", confirmLabel: "OK" });
             openMobileAdminSection("settings");
           });
@@ -6523,24 +6522,36 @@
 
     /* ── Bootstrap ── */
     async function bootstrap() {
-      // 1. Firestore är källan — ladda ALLTID vid start (timeout 4s → fallback localStorage)
+      // 1. Sätt receiptCounter till minst 41 (migration från Realtime Database)
+      const currentCounter = parseInt(localStorage.getItem(RECEIPT_COUNTER_KEY) || "0");
+      if (currentCounter < 41) {
+        localStorage.setItem(RECEIPT_COUNTER_KEY, "41");
+      }
+
+      // 2. Rensa gammal sales-logg (rapport byggs från kvitton nu)
+      localStorage.removeItem(SALES_STORAGE_KEY);
+
+      // 3. Firestore är källan — ladda ALLTID vid start (timeout 4s → fallback localStorage)
       await loadFromFirestore();
       _fbReady = true;
 
-      // 2. Ladda katalog och rendera
+      // 4. Ladda katalog
       categories = loadCatalog();
       cleanupQtyState();
+
+      // 5. Starta BÅDA Firestore-lyssnarna
+      startFirestoreConfigListener();
+      startFirestoreReceiptListener();
+
+      // 6. Starta offline kvitto-retry
+      startReceiptRetryLoop();
+
+      // 7. Rendera
       renderOverview();
       renderSummary();
       openOverview();
 
-      // 3. Starta BÅDA Firestore-lyssnarna
-      startFirestoreConfigListener();
-      startFirestoreReceiptListener();
-
-      // 4. Starta offline kvitto-retry
-      startReceiptRetryLoop();
-
+      // 8. Initiera vy
       if (IS_MOBILE_VIEW) {
         document.getElementById("mobileApp").style.display = "block";
         document.querySelector(".viewport").style.display = "none";
