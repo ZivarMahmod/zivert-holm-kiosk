@@ -2604,14 +2604,31 @@
     // Ladda från Firestore vid start — Firestore vinner alltid, 4s timeout → fallback localStorage
     async function loadFromFirestore() {
       if (!window._firestoreDb) return;
+
+      // Spara kvitto-cache som fallback vid timeout
+      const receiptFallback = localStorage.getItem(RECEIPT_STORAGE_KEY);
+
+      // Rensa gammal localStorage-cache för kvitton så den aldrig
+      // renderas innan Firestore-data hunnit laddas
+      localStorage.removeItem(RECEIPT_STORAGE_KEY);
+
+      let firestoreOk = false;
       try {
-        const doc = await Promise.race([
-          window._firestoreDb.collection("config").doc(FS_CONFIG_DOC).get(),
+        // Ladda config + kvitton parallellt med 4s timeout
+        const [configDoc, receiptSnap] = await Promise.race([
+          Promise.all([
+            window._firestoreDb.collection("config").doc(FS_CONFIG_DOC).get(),
+            window._firestoreDb.collection("receipts").get()
+          ]),
           new Promise((_, r) => setTimeout(() => r(new Error("timeout")), 4000))
         ]);
-        if (doc.exists) {
+
+        firestoreOk = true;
+
+        // Config
+        if (configDoc.exists) {
           _fbSyncPaused = true;
-          const d = doc.data();
+          const d = configDoc.data();
           if (d.catalog)   localStorage.setItem(CATALOG_STORAGE_KEY,   JSON.stringify(d.catalog));
           if (d.inventory) localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(d.inventory));
           if (d.offers)    localStorage.setItem(OFFERS_STORAGE_KEY,     JSON.stringify(d.offers));
@@ -2619,7 +2636,6 @@
           if (d.settings) {
             const localS = (() => { try { return JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY)||"{}"); } catch(e){return{};} })();
             const merged = { ...d.settings };
-            // Bevara alla lokala känsliga fält
             NEVER_SYNC_TO_FIRESTORE.forEach(k => { if (localS[k]) merged[k] = localS[k]; });
             Object.keys(localS).forEach(k => { if (/pw|password|lösenord/i.test(k) && localS[k]) merged[k] = localS[k]; });
             if (localS.swishNumber) merged.swishNumber = localS.swishNumber;
@@ -2628,7 +2644,32 @@
           }
           _fbSyncPaused = false;
         }
-      } catch(e) { console.warn("Firestore startup load failed, using localStorage:", e.message); }
+
+        // Kvitton — bygg om localStorage-cachen helt från Firestore
+        const receipts = [];
+        receiptSnap.forEach(doc => {
+          const d = doc.data();
+          receipts.push({
+            id: d.kvittoNummer || doc.id,
+            status: d.status || "registrerad",
+            time: d.datum && d.tid ? new Date(d.datum + "T" + d.tid).toISOString() : (d.createdAt ? d.createdAt.toDate().toISOString() : new Date().toISOString()),
+            datum: d.datum || "",
+            tid: d.tid || "",
+            items: d.produkter || [],
+            total: d.totalSumma || 0,
+            tagged: !!d.tagg,
+            tagType: d.tagg || null
+          });
+        });
+        localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(receipts));
+
+      } catch(e) {
+        console.warn("Firestore startup load failed, using localStorage:", e.message);
+        // Timeout eller fel — återställ kvitto-cachen som fallback
+        if (!firestoreOk && receiptFallback) {
+          localStorage.setItem(RECEIPT_STORAGE_KEY, receiptFallback);
+        }
+      }
     }
 
     const DEFAULT_TAGS = [
