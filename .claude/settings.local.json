@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E '\\\\.\\(json|js|ts|py|yml|yaml|config\\)$')",
+      "Bash(find /c/Users/Zivar-PC/Desktop/zivert-holm-kiosk -type f -name .github -o -name .gitlab-ci.yml -o -name .travis.yml -o -name Dockerfile -o -name Makefile -o -name *.sh)",
+      "Bash(git -C /c/Users/Zivar-PC/Desktop/zivert-holm-kiosk log --oneline --all)",
+      "Bash(git -C /c/Users/Zivar-PC/Desktop/zivert-holm-kiosk ls-files)",
+      "Bash(git -C /c/Users/Zivar-PC/Desktop/zivert-holm-kiosk log --all --oneline --name-status)",
+      "Bash(git -C /c/Users/Zivar-PC/Desktop/zivert-holm-kiosk show HEAD --name-only)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(where python:*)",
+      "Bash(where python3:*)",
+      "Bash(where node:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Read(//c/Users/Zivar-PC/Downloads/**)",
+      "Bash(unzip -l /c/Users/Zivar-PC/Downloads/files.zip)",
+      "Bash(unzip -o /c/Users/Zivar-PC/Downloads/files.zip -d /tmp/patch-files)",
+      "Bash(git status:*)",
+      "Bash(gh repo:*)",
+      "Bash(gh api:*)",
+      "Bash(git checkout:*)",
+      "Bash(grep -n \"^</head>$\\\\|^<body\\\\|^<div.*view\\\\|^<div.*modal\\\\|^</div>$\" /c/Users/Zivar-PC/Desktop/zivert-holm-kiosk/index.html)",
+      "Bash(grep -E \"\\\\.\\(html|js|css|json|md\\)$\")"
+    ]
+  }
+}

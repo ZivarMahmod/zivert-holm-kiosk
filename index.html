@@ -5,312 +5,254 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Zivert Holms hörna</title>
   <link rel="manifest" href="manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Cabinet+Grotesk:wght@400;500;700;800&display=swap" rel="stylesheet">
   <meta name="theme-color" content="#f5a623" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="ZH Kiosk" />
   <style>
+    /* V5 DESIGN VARIABLES */
     :root {
-      --bg: linear-gradient(160deg, #f0f7f4 0%, #e8f4f8 50%, #f5f0eb 100%);
-      --surface: rgba(0,0,0,.03);
-      --surface-hover: rgba(0,0,0,.06);
-      --border: rgba(0,0,0,.06);
+      --cream:#faf8f4;
+      --white:#ffffff;
+      --ink:#111018;
+      --muted:#8b8898;
+      --muted2:#c4c0d0;
+      --border:rgba(0,0,0,0.07);
+      --r:22px;
+      --c-mat:#ff6b35; --c-mat-bg:#fff5f2; --c-mat-mid:rgba(255,107,53,0.12);
+      --c-mel:#22c55e; --c-mel-bg:#f0fdf4; --c-mel-mid:rgba(34,197,94,0.12);
+      --c-dry:#3b82f6; --c-dry-bg:#eff6ff; --c-dry-mid:rgba(59,130,246,0.12);
+      --c-sna:#a855f7; --c-sna-bg:#faf5ff; --c-sna-mid:rgba(168,85,247,0.12);
+      --accent:#ff6b35;
+      --accent-bg:#fff5f2;
+      --accent-mid:rgba(255,107,53,0.12);
+      /* Legacy vars for admin/modals */
       --text: #2c3e35;
       --text-muted: #6b7c74;
-      --accent: #5b8fa8;
+      --surface: rgba(0,0,0,.03);
+      --surface-hover: rgba(0,0,0,.06);
       --accent2: #c47a3a;
       --highlight: rgba(91,143,168,.12);
       --shadow: 0 2px 12px rgba(0,0,0,.08);
     }
 
+    /* V5 ANIMATIONS */
+    @keyframes blink{0%,100%{opacity:1;}50%{opacity:0.3;}}
+    @keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.4);}}
+    @keyframes heroFloat{0%,100%{transform:translateY(0) rotate(-3deg);}50%{transform:translateY(-10px) rotate(3deg);}}
+    @keyframes tickPop{from{transform:scale(0) rotate(-45deg);}to{transform:scale(1) rotate(0);}}
+    @keyframes oiIn{from{opacity:0;transform:translateX(30px) scale(0.9);}to{opacity:1;transform:none;}}
+    @keyframes spin-slow{from{transform:rotate(0);}to{transform:rotate(360deg);}}
+    @keyframes countUp{0%{transform:translateY(8px);opacity:0;}100%{transform:none;opacity:1;}}
+    @keyframes gridOut{to{opacity:0;transform:scale(0.96) translateY(8px);}}
+    @keyframes gridIn{from{opacity:0;transform:scale(0.97) translateY(12px);}to{opacity:1;transform:none;}}
+    @keyframes fadeSlideIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
     @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
     @keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
-    @keyframes fadeSlideIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+    @keyframes bubblaHopp{0%,100%{transform:translateY(0) scale(1);}30%{transform:translateY(-6px) scale(1.03);}60%{transform:translateY(-3px) scale(1.01);}}
 
-    *, *::before, *::after {
-      box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
-    }
-    html, body {
-      margin: 0; padding: 0;
-      width: 100%; height: 100%;
-      overflow: hidden;
-      font-family: Georgia, "Times New Roman", serif;
-      color: var(--text);
-      background: #e8f0ec;
-    }
-    body {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    button, input, textarea {
-      font-family: inherit;
-    }
+    /* V5 RESET & BASE */
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+    html,body{height:100%;font-family:'Cabinet Grotesk','Plus Jakarta Sans',system-ui,sans-serif;background:#e8f0ec;color:var(--ink);overflow:hidden;margin:0;padding:0;}
+    body{display:flex;align-items:center;justify-content:center;}
+    button,input,textarea{font-family:inherit;}
 
-    /* ── Stage / Viewport scaling ── */
-    .viewport {
-      width: 100vw; height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      background-image:
-        linear-gradient(rgba(255,255,255,0.82), rgba(255,255,255,0.82)),
-        url('images/backgrund.png');
-      background-size: cover;
-      background-position: center;
-      background-repeat: no-repeat;
-      background-attachment: fixed;
-    }
-    .stage {
-      width: 1920px; height: 1080px;
-      transform-origin: center center;
-      position: relative;
-      flex-shrink: 0;
-    }
+    /* VIEWPORT / STAGE (kept for kiosk scaling) */
+    .viewport{width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--cream);}
+    .stage{width:1920px;height:1080px;transform-origin:center center;position:relative;flex-shrink:0;}
 
-    /* ── App shell ── */
-    .app {
-      width: 1920px; height: 1080px;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      background: linear-gradient(160deg, #f0f7f4 0%, #e8f4f8 50%, #f5f0eb 100%);
-      position: relative;
-    }
+    /* APP SHELL */
+    .app{width:1920px;height:1080px;overflow:hidden;display:flex;flex-direction:column;background:var(--cream);position:relative;}
 
-    /* ── Orbs ── */
-    .orb{position:absolute;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:0;}
-    .orb1{width:500px;height:500px;background:rgba(91,143,168,.08);top:-100px;right:100px;}
-    .orb2{width:350px;height:350px;background:rgba(180,200,180,.1);bottom:-80px;left:150px;}
-    .orb3{width:250px;height:250px;background:rgba(196,122,58,.06);top:200px;left:300px;}
+    /* V5 HEADER */
+    .header{
+      position:relative;z-index:10;
+      background:var(--ink);
+      padding:0 24px;height:48px;
+      display:flex;align-items:center;justify-content:space-between;
+      flex-shrink:0;
+    }
+    .brand{font-family:'Syne','Georgia',serif;font-size:16px;font-weight:800;color:#fff;letter-spacing:-0.3px;display:flex;align-items:center;gap:8px;}
+    .brand-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);animation:blink 2.5s ease-in-out infinite;}
+    .header-mid{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:50px;padding:5px 14px;font-size:11px;color:rgba(255,255,255,0.4);min-width:200px;justify-content:center;}
+    .header-mid span{font-size:12px;opacity:0.5;}
+    .header-right{display:flex;align-items:center;gap:10px;}
+    .h-date{font-size:11px;color:rgba(255,255,255,0.35);}
+    .h-status{display:flex;align-items:center;gap:4px;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.2);border-radius:50px;padding:3px 8px;font-size:10px;font-weight:700;color:#4ade80;}
+    .h-pulse{width:5px;height:5px;border-radius:50%;background:#4ade80;box-shadow:0 0 5px #4ade80;animation:pulse 2s infinite;}
+    .h-av{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#a855f7,#3b82f6);display:flex;align-items:center;justify-content:center;font-family:'Syne',serif;font-size:10px;font-weight:800;color:#fff;}
 
-    /* ── Top bar ── */
-    .top-bar {
-      height: 52px;
-      background: rgba(255,255,255,.7);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border-bottom: 1px solid rgba(0,0,0,.06);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 28px;
-      flex-shrink: 0;
-      position: relative;
-      z-index: 2;
-    }
-    .top-bar-title {
-      font-size: 38px;
-      font-style: italic;
-      color: #2c3e35;
-      line-height: 1;
-      letter-spacing: .2px;
-    }
-    .top-bar-hint {
-      font-size: 14px;
-      color: #6b7c74;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-    }
+    /* V5 MAIN LAYOUT */
+    .app-body{flex:1;min-height:0;display:flex;overflow:hidden;position:relative;z-index:1;}
 
-    /* ── Body grid ── */
-    .body {
-      flex: 1;
-      min-height: 0;
-      display: grid;
-      grid-template-columns: 1fr 380px;
-      overflow: hidden;
-      position: relative;
-      z-index: 1;
+    /* V5 SIDEBAR */
+    .v5-sidebar{
+      width:76px;background:var(--white);
+      border-right:1px solid var(--border);
+      display:flex;flex-direction:column;align-items:center;
+      padding:24px 0 18px;gap:6px;flex-shrink:0;
     }
+    .si{width:46px;height:46px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:19px;cursor:pointer;color:var(--muted2);transition:all 0.2s;position:relative;}
+    .si:hover{background:var(--cream);color:var(--ink);}
+    .si.on{background:var(--accent-bg);color:var(--accent);}
+    .si.on::after{content:'';position:absolute;right:-1px;top:50%;transform:translateY(-50%);width:3px;height:20px;background:var(--accent);border-radius:3px 0 0 3px;}
+    .si-notif{position:absolute;top:8px;right:8px;width:7px;height:7px;border-radius:50%;background:#ef4444;border:2px solid #fff;}
+    .si-space{flex:1;}
 
-    /* ── Main content area ── */
-    .main-content {
-      min-height: 0;
-      overflow: hidden;
-      position: relative;
-    }
-    .view {
-      width: 100%; height: 100%;
-      display: none;
-      overflow-y: auto;
-    }
-    .view.active { display: block; }
+    /* V5 FEED */
+    .feed{flex:1;overflow-y:auto;padding:36px 24px 24px 28px;scrollbar-width:thin;scrollbar-color:var(--muted2) transparent;}
+    .feed::-webkit-scrollbar{width:3px;}
+    .feed::-webkit-scrollbar-thumb{background:var(--muted2);border-radius:2px;}
 
-    /* ── Overview ── */
-    .overview-inner {
-      padding: 32px 36px;
-      display: flex;
-      flex-direction: column;
-      gap: 36px;
+    /* V5 HERO BANNER */
+    .hero{
+      border-radius:28px;
+      background:linear-gradient(135deg,var(--accent) 0%,#ff9a5c 100%);
+      padding:26px 30px;display:flex;align-items:center;justify-content:space-between;
+      margin-bottom:28px;position:relative;overflow:hidden;cursor:pointer;
+      transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1),box-shadow 0.3s;
     }
-    .section-label {
-      font-size: 14px;
-      letter-spacing: 2px;
-      color: #6b7c74;
-      text-transform: uppercase;
-      margin: 0 0 14px;
-    }
-    .section-title {
-      margin: 0 0 16px;
-      font-size: 52px;
-      font-style: italic;
-      color: #2c3e35;
-      line-height: 1;
-    }
+    .hero:hover{transform:scale(1.02);box-shadow:0 24px 60px rgba(255,107,53,0.35);}
+    .hero::before{content:'';position:absolute;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,0.1);top:-60px;right:100px;}
+    .hero::after{content:'';position:absolute;width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,0.07);bottom:-50px;right:30px;}
+    .hero-tag{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,0.25);color:#fff;font-size:10px;font-weight:700;padding:3px 10px;border-radius:50px;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;}
+    .hero-title{font-family:'Syne','Georgia',serif;font-size:22px;font-weight:800;color:#fff;line-height:1.25;max-width:260px;}
+    .hero-title span{background:rgba(255,255,255,0.25);border-radius:6px;padding:0 6px;display:inline-block;}
+    .hero-cta{display:inline-flex;align-items:center;gap:6px;margin-top:14px;background:#fff;border:none;color:var(--accent);font-family:inherit;font-size:13px;font-weight:800;padding:9px 20px;border-radius:50px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.15);transition:transform 0.2s,box-shadow 0.2s;}
+    .hero-cta:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.2);}
+    .hero-emoji{font-size:72px;flex-shrink:0;position:relative;z-index:1;filter:drop-shadow(0 12px 24px rgba(0,0,0,0.2));animation:heroFloat 3s ease-in-out infinite;}
 
-    /* Category cards */
-    .category-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
-    }
-    .category-card {
-      border-radius: 20px;
-      position: relative;
-      overflow: hidden;
-      min-height: 180px;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-      cursor: pointer;
-      text-align: left;
-      color: #2c3e35;
-      border: 1px solid rgba(0,0,0,.06);
-      box-shadow: 0 2px 12px rgba(0,0,0,.08);
-      transition: transform .2s ease, box-shadow .2s ease;
-    }
-    .category-card:hover {
-      transform: scale(1.03);
-      box-shadow: 0 12px 32px rgba(0,0,0,.12);
-    }
-    .category-card:active {
-      transform: scale(.98);
-    }
-    .category-card-emoji {
-      position: absolute;
-      top: 14px;
-      right: 18px;
-      font-size: 52px;
-      line-height: 1;
-      opacity: .6;
-      animation: float 3s ease-in-out infinite;
-    }
-    .category-card-name {
-      margin: 0;
-      font-size: 36px;
-      font-style: italic;
-      color: #2c3e35;
-      line-height: 1.05;
-    }
-    .category-card-sub {
-      margin: 6px 0 0;
-      font-size: 18px;
-      color: #6b7c74;
-      line-height: 1.2;
-    }
-    .category-card-count {
-      margin-top: 8px;
-      font-size: 14px;
-      color: #8a9b93;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-    }
+    /* V5 CATEGORY TABS */
+    .cat-wrap{display:flex;gap:0;margin-bottom:26px;background:var(--white);border-radius:18px;border:1px solid var(--border);padding:5px;overflow:hidden;}
+    .cat-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:10px 8px;border-radius:13px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);user-select:none;white-space:nowrap;border:2px solid transparent;}
+    .cat-tab .ct-icon{width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;background:var(--cream);transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);}
+    .cat-tab.on{background:var(--accent-bg);color:var(--accent);border-color:var(--accent-mid);}
+    .cat-tab.on .ct-icon{background:var(--accent);font-size:16px;}
+    .cat-tab:not(.on):hover{background:var(--cream);color:var(--ink);}
 
-    /* Offers */
-    .offers-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      overflow: visible;
-      padding-bottom: 60px;
+    /* V5 SECTION HEAD */
+    .sec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}
+    .sec-title{font-family:'Syne','Georgia',serif;font-size:18px;font-weight:800;}
+    .sec-count{font-size:12px;color:var(--muted);background:var(--cream);padding:3px 10px;border-radius:50px;font-weight:600;}
+
+    /* V5 PRODUCT GRID */
+    .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;}
+    .pgrid.exit{animation:gridOut 0.2s ease forwards;}
+    .pgrid.enter{animation:gridIn 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards;}
+
+    /* V5 PRODUCT CARD */
+    .pcard{background:var(--white);border-radius:var(--r);border:1.5px solid var(--border);padding:16px 14px 14px;cursor:pointer;position:relative;text-align:center;user-select:none;overflow:hidden;transition:box-shadow 0.25s;transform-style:preserve-3d;will-change:transform;}
+    .pcard:hover{box-shadow:0 16px 48px rgba(0,0,0,0.12);}
+    .pcard:active{transform:scale(0.97) !important;transition:transform 0.1s;}
+    .pcard.in-cart{border-color:var(--accent);}
+    .pcard::after{content:'';position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,0.5) 50%,transparent 70%);transform:translateX(-100%);transition:transform 0s;border-radius:var(--r);pointer-events:none;}
+    .pcard:hover::after{transform:translateX(100%);transition:transform 0.5s ease;}
+    .ptick{position:absolute;top:10px;right:10px;z-index:3;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;display:none;align-items:center;justify-content:center;font-size:12px;font-weight:800;box-shadow:0 4px 12px rgba(255,107,53,0.45);animation:tickPop 0.3s cubic-bezier(0.34,1.56,0.64,1);}
+    .pcard.in-cart .ptick{display:flex;}
+    .pbadge{position:absolute;top:10px;left:10px;z-index:3;font-size:8px;font-weight:800;letter-spacing:0.8px;padding:3px 8px;border-radius:50px;text-transform:uppercase;}
+    .pb-pop{background:#fef9c3;color:#92400e;}
+    .pb-new{background:#dcfce7;color:#15803d;}
+    .pb-hot{background:#fee2e2;color:#dc2626;}
+    .pimg{width:90px;height:90px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:48px;position:relative;transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1);background:var(--accent-bg);}
+    .pcard:hover .pimg{transform:scale(1.12) translateY(-4px);}
+    .pimg-qty{position:absolute;bottom:-4px;right:-4px;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;font-weight:800;display:none;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 8px rgba(255,107,53,0.4);}
+    .pcard.in-cart .pimg-qty{display:flex;}
+    .pname{font-family:'Syne','Georgia',serif;font-size:13px;font-weight:800;line-height:1.25;margin-bottom:3px;}
+    .psub{font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.4;}
+    .pfoot{display:flex;align-items:center;justify-content:space-between;}
+    .pprice{font-family:'Syne','Georgia',serif;font-size:18px;font-weight:800;}
+    .pprice-kr{font-size:10px;font-weight:600;color:var(--muted);}
+    .padd{width:34px;height:34px;border-radius:50%;border:none;display:flex;align-items:center;justify-content:center;font-size:22px;line-height:1;cursor:pointer;flex-shrink:0;background:var(--accent);color:#fff;box-shadow:0 4px 14px rgba(255,107,53,0.4);transition:all 0.2s cubic-bezier(0.34,1.56,0.64,1);position:relative;overflow:hidden;}
+    .padd:hover{transform:scale(1.18);box-shadow:0 6px 20px rgba(255,107,53,0.55);}
+    .padd:active{transform:scale(0.88);}
+    .padd::after{content:'';position:absolute;inset:0;border-radius:50%;background:rgba(255,255,255,0.35);transform:scale(0);opacity:1;transition:transform 0.4s,opacity 0.4s;}
+    .padd.rippling::after{transform:scale(2.5);opacity:0;}
+
+    /* V5 ORDER PANEL */
+    .panel{
+      width:340px;flex-shrink:0;background:var(--white);border-left:1px solid var(--border);
+      display:flex;flex-direction:column;padding:24px 20px 20px;overflow-y:auto;
+      scrollbar-width:thin;scrollbar-color:var(--muted2) transparent;
     }
-    .offer-card {
-      position: relative;
-      overflow: hidden;
-      background: #fdf8f0;
-      border: 1px solid #e8c87a;
-      border-radius: 14px;
-      padding: 16px 20px;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      box-shadow: 0 2px 8px rgba(0,0,0,.05);
-    }
-    .offer-card::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(90deg,transparent,rgba(232,200,122,.06),transparent);
-      background-size: 400px 100%;
-      animation: shimmer 3s infinite;
-      pointer-events: none;
-    }
-    .offer-pill {
-      background: rgba(196,122,58,.15);
-      color: #c47a3a;
-      font-size: 13px;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      border-radius: 8px;
-      padding: 6px 12px;
-      white-space: nowrap;
-      flex-shrink: 0;
-      display: inline-block;
-      height: fit-content;
-    }
-    .offer-pill[data-type="VECKANS DEAL"],
-    .offer-pill[data-type="NYHET"] {
-      font-size: 15px;
-      padding: 8px 12px;
-    }
-    .offer-info { min-width: 0; }
-    .offer-title {
-      font-size: 24px;
-      font-style: italic;
-      font-family: Georgia, serif;
-      color: #2c3e35;
-      margin: 0 0 4px;
-      line-height: 1.1;
-    }
-    .offer-desc {
-      font-size: 15px;
-      font-family: Georgia, serif;
-      color: #6b7c74;
-      margin: 0;
-      line-height: 1.3;
-    }
-    .offer-price {
-      font-size: 18px;
-      font-weight: 700;
-      font-family: Georgia, serif;
-      color: #c47a3a;
-      margin-top: 6px;
-    }
+    .panel::-webkit-scrollbar{width:3px;}
+    .panel::-webkit-scrollbar-thumb{background:var(--muted2);border-radius:2px;}
+    .panel-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
+    .panel-brand{font-family:'Syne','Georgia',serif;font-size:15px;font-weight:800;display:flex;align-items:center;gap:7px;}
+    .panel-brand-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:blink 2.5s infinite;}
+    .panel-clear{font-size:11px;color:var(--muted);cursor:pointer;transition:color 0.15s;border:none;background:none;font-family:inherit;}
+    .panel-clear:hover{color:#ef4444;}
+    .panel-title{font-family:'Syne','Georgia',serif;font-size:18px;font-weight:800;margin-bottom:3px;}
+    .panel-sub{font-size:12px;color:var(--muted);margin-bottom:16px;}
+    .pdiv{height:1px;background:var(--border);margin:14px 0;}
+    .panel-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:20px 0;}
+    .pe-icon{width:64px;height:64px;border-radius:50%;background:var(--cream);border:2px dashed var(--muted2);display:flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:6px;animation:spin-slow 10s linear infinite;}
+    .pe-lbl{font-size:14px;font-weight:700;color:var(--muted);}
+    .pe-hint{font-size:11px;color:var(--muted2);}
+
+    /* ORDER ITEMS */
+    .oi-wrap{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;}
+    .oi{display:flex;align-items:center;gap:10px;background:var(--cream);border-radius:16px;padding:10px 11px;transition:all 0.2s;animation:oiIn 0.3s cubic-bezier(0.34,1.56,0.64,1);}
+    .oi:hover{background:#f3f0f8;}
+    .oi-img{width:40px;height:40px;border-radius:13px;background:var(--white);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+    .oi-info{flex:1;min-width:0;}
+    .oi-name{font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .oi-price{font-size:12px;color:var(--accent);font-weight:800;margin-top:1px;}
+    .oi-ctrl{display:flex;align-items:center;gap:5px;flex-shrink:0;}
+    .oib{width:24px;height:24px;border-radius:8px;border:1.5px solid var(--muted2);background:var(--white);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--ink);font-weight:700;transition:all 0.15s;line-height:1;}
+    .oib:hover{border-color:var(--accent);color:var(--accent);}
+    .oiq{font-size:13px;font-weight:800;min-width:18px;text-align:center;}
+
+    /* SUMMARY */
+    .sum-r{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:5px;}
+    .sum-free{color:#22c55e;font-weight:700;}
+    .sum-total{display:flex;justify-content:space-between;font-family:'Syne','Georgia',serif;font-size:21px;font-weight:800;margin-top:12px;}
+    .sum-total-val{background:linear-gradient(135deg,var(--accent),#ff9a5c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+    .counting{animation:countUp 0.35s cubic-bezier(0.34,1.56,0.64,1);}
+
+    /* CHECKOUT BTN */
+    .checkout-btn{margin-top:16px;width:100%;padding:15px;border-radius:50px;border:none;background:linear-gradient(135deg,var(--accent),#ff9a5c);color:#fff;font-family:'Syne','Georgia',serif;font-size:15px;font-weight:800;letter-spacing:0.2px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 8px 28px rgba(255,107,53,0.4);transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);position:relative;overflow:hidden;}
+    .checkout-btn::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,0.15),transparent);}
+    .checkout-btn:hover{transform:translateY(-3px) scale(1.02);box-shadow:0 14px 36px rgba(255,107,53,0.5);}
+    .checkout-btn:active{transform:scale(0.97);}
+    .checkout-btn:disabled{background:var(--muted2);box-shadow:none;cursor:not-allowed;transform:none;}
+    .pay-row{display:flex;gap:8px;margin-top:10px;}
+    .pay-alt{flex:1;padding:12px;border-radius:50px;background:var(--cream);border:1.5px solid var(--border);font-family:inherit;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all 0.2s;}
+    .pay-alt:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-bg);}
+    .pay-alt:disabled{opacity:0.35;cursor:not-allowed;}
+    .pay-note{margin-top:12px;font-size:10px;color:var(--muted2);text-align:center;line-height:1.7;}
+
+    /* V5 OFFERS GRID */
+    .offers-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:26px;}
+    .offer-card{position:relative;overflow:visible;background:var(--white);border:1.5px solid var(--border);border-radius:var(--r);padding:18px 20px;display:flex;align-items:center;gap:14px;box-shadow:0 2px 12px rgba(0,0,0,.04);transition:all 0.2s;}
+    .offer-card:hover{box-shadow:0 8px 24px rgba(0,0,0,.08);transform:translateY(-2px);}
+    .offer-card::after{content:none;}
+    .offer-pill{background:var(--accent-bg);color:var(--accent);font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;border-radius:50px;padding:4px 12px;white-space:nowrap;flex-shrink:0;display:inline-block;height:fit-content;}
+    .offer-info{min-width:0;flex:1;}
+    .offer-title{font-family:'Syne','Georgia',serif;font-size:15px;font-weight:800;color:var(--ink);margin:0 0 3px;line-height:1.2;}
+    .offer-desc{font-size:11px;color:var(--muted);margin:0;line-height:1.3;}
+    .offer-price{font-size:14px;font-weight:800;color:var(--accent);margin-top:4px;}
 
     /* Erbjudande välj-knapp */
     .erbjudande-välj-knapp {
-      background: linear-gradient(135deg, #72383D, #8B4449);
-      color: #EFE9E1;
+      background: var(--accent);
+      color: #fff;
       border: none;
-      border-radius: 14px;
-      padding: 14px 28px;
-      font-family: Georgia, serif;
-      font-size: 18px;
-      font-weight: bold;
+      border-radius: 50px;
+      padding: 8px 18px;
+      font-family: 'Syne','Georgia',serif;
+      font-size: 12px;
+      font-weight: 800;
       cursor: pointer;
-      box-shadow: 0 4px 15px rgba(114,56,61,0.4);
+      box-shadow: 0 4px 14px rgba(255,107,53,0.3);
       transition: transform 0.15s, box-shadow 0.15s;
       white-space: nowrap;
       flex-shrink: 0;
     }
     .erbjudande-välj-knapp:hover {
       transform: scale(1.05);
-      box-shadow: 0 6px 20px rgba(114,56,61,0.5);
+      box-shadow: 0 6px 20px rgba(255,107,53,0.4);
     }
     .erbjudande-välj-knapp:active {
       transform: scale(0.97);
@@ -373,7 +315,23 @@
       100% { transform: translateY(-4px); }
     }
 
-    /* ── Category view ── */
+    /* WISH ROW in feed */
+    .wish-row{display:flex;justify-content:center;margin-top:30px;padding-bottom:30px;}
+
+    /* When admin is active, hide sidebar, panel, and hidden trigger */
+    .admin-active .v5-sidebar { display: none; }
+    .admin-active .panel { display: none; }
+    .admin-mode-on .hidden-report-trigger { display: none !important; pointer-events: none !important; }
+    .admin-active .feed { padding-top: 24px; }
+
+    /* VIEW SYSTEM (kept for admin) */
+    .view{width:100%;height:100%;display:none;overflow-y:auto;}
+    .view.active{display:block;}
+
+    /* EMPTY TEXT */
+    .empty-text{font-size:18px;color:var(--muted);padding:32px;}
+
+    /* ── Legacy category view (hidden) ── */
     .category-page {
       display: flex;
       flex-direction: column;
@@ -1864,53 +1822,78 @@
     <div class="stage" id="stage">
       <div class="app">
 
-        <!-- Orbs -->
-        <div class="orb orb1"></div>
-        <div class="orb orb2"></div>
-        <div class="orb orb3"></div>
+        <!-- V5 HEADER -->
+        <header class="header">
+          <div class="brand">
+            <div class="brand-dot"></div>
+            Zivert Holms Hörna
+          </div>
+          <div class="header-mid">
+            <span>🔍</span> Sök vara eller kategori...
+          </div>
+          <div class="header-right">
+            <div class="h-date" id="v5Date"></div>
+            <div class="h-status"><div class="h-pulse"></div>Öppen</div>
+            <div class="h-av">ZH</div>
+          </div>
+        </header>
 
-        <!-- ── Top bar (customer) ── -->
-        <div class="top-bar" id="customerTopBar">
-          <span class="top-bar-title">Zivert Holms hörna</span>
-          <span class="top-bar-hint">Välj → Lägg i vagnen → Betala med Swish</span>
-        </div>
+        <!-- V5 APP BODY -->
+        <div class="app-body" id="customerBody">
 
-        <!-- ── Body ── -->
-        <div class="body" id="customerBody">
+          <!-- V5 SIDEBAR -->
+          <nav class="v5-sidebar">
+            <div class="si on" id="sidebarHome" title="Hem">🏠</div>
+            <div class="si" id="sidebarPopular" title="Populärt idag">❤️</div>
+            <div class="si-space"></div>
+            <div class="si" id="sidebarSettings" title="Inställningar">⚙️</div>
+          </nav>
 
-          <!-- Main content -->
-          <div class="main-content">
+          <!-- MAIN CONTENT AREA -->
+          <div style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;">
 
-            <!-- Overview -->
-            <section class="view active" id="overviewView">
-              <div class="overview-inner">
-                <!-- Categories -->
-                <div>
-                  <p class="section-label">Tryck på en kategori</p>
-                  <h2 class="section-title">Vad tar du idag?</h2>
-                  <div class="category-grid" id="overviewGrid"></div>
+            <!-- CUSTOMER VIEW (always visible when not in admin) -->
+            <section class="view active" id="overviewView" style="display:flex;flex-direction:column;">
+              <main class="feed" id="customerFeed" style="flex:1;">
+
+                <!-- POPULÄRT IDAG -->
+                <div id="popularSection" style="display:none;margin-bottom:26px;">
+                  <div class="sec-head" style="margin-bottom:14px;">
+                    <div class="sec-title">❤️ Populärt idag</div>
+                    <div class="sec-count" id="popularCount">0 produkter</div>
+                  </div>
+                  <div class="pgrid" id="popularGrid" style="margin-bottom:8px;"></div>
                 </div>
-                <!-- Offers -->
-                <div>
-                  <h2 class="section-title" style="font-size:36px;">Just nu</h2>
+
+                <!-- CATEGORY TABS -->
+                <div class="cat-wrap" id="catWrap"></div>
+
+                <!-- SEC HEAD -->
+                <div class="sec-head">
+                  <div class="sec-title" id="secTitle">Mat</div>
+                  <div class="sec-count" id="secCount">0 produkter</div>
+                </div>
+
+                <!-- PRODUCT GRID -->
+                <div class="pgrid" id="pgrid"></div>
+
+                <!-- OFFERS (below products) -->
+                <div style="margin-top:28px;">
+                  <div class="sec-head" style="margin-bottom:14px;">
+                    <div class="sec-title">🏷 Erbjudanden</div>
+                  </div>
                   <div class="offers-grid" id="offersGrid"></div>
                 </div>
+
+                <!-- WISH BTN -->
                 <div class="wish-row">
                   <button class="wish-trigger-btn" id="wishTriggerBtn" type="button">💌 Önska en produkt</button>
                 </div>
-              </div>
+              </main>
             </section>
 
-            <!-- Category / Product list -->
-            <section class="view" id="categoryView">
-              <div class="category-page">
-                <div class="category-top">
-                  <button class="back-btn" id="backBtn" type="button">← Tillbaka</button>
-                  <h2 class="category-heading" id="categoryTitle">Kategori</h2>
-                </div>
-                <div class="product-grid" id="productList"></div>
-              </div>
-            </section>
+            <!-- CATEGORY VIEW (hidden, kept for compatibility) -->
+            <section class="view" id="categoryView" style="display:none;"></section>
 
             <!-- Admin / Report view -->
             <section class="view" id="reportView">
@@ -1918,7 +1901,7 @@
                 <div class="admin-top-bar">
                   <button class="admin-hamburger-btn" id="adminHamburgerBtn" type="button">☰</button>
                   <span class="admin-top-bar-title">⚙ Adminpanel</span>
-                  <button class="admin-logout-btn" id="reportLogoutBtn" type="button">Logga ut</button>
+                  <button class="admin-logout-btn" id="reportLogoutBtn" type="button" style="background:var(--accent,#ff6b35);color:#fff;border:none;border-radius:50px;font-weight:700;padding:8px 20px;font-size:16px;cursor:pointer;">← Tillbaka till kiosken</button>
                 </div>
                 <div class="admin-nav-overlay" id="adminNavOverlay"></div>
                 <div class="admin-body">
@@ -2141,24 +2124,29 @@
 
           </div>
 
-          <!-- Cart panel -->
-          <aside class="cart-panel">
-            <div class="cart-top">
-              <h3>Valda varor</h3>
-              <div class="cart-items" id="cartItems"></div>
+          <!-- V5 ORDER PANEL -->
+          <aside class="panel" id="cartPanel">
+            <div class="panel-top">
+              <div class="panel-brand"><div class="panel-brand-dot"></div>Beställning</div>
+              <button class="panel-clear" id="clearBtn" type="button">Rensa allt</button>
             </div>
-            <div class="cart-bottom">
-              <div class="cart-count-row">
-                <span>Antal artiklar</span>
-                <strong id="itemCount">0</strong>
-              </div>
-              <div class="cart-total-row">
-                <span>Totalt</span>
-                <strong id="totalAmount">0 kr</strong>
-              </div>
-              <button class="pay-btn" id="payBtn" type="button" disabled>Betala med Swish</button>
-              <button class="clear-btn" id="clearBtn" type="button" disabled>Rensa val</button>
-              <p class="swish-note">Skanna QR-koden i Swish-appen efter att du tryckt på Betala.</p>
+            <div class="panel-title">Din korg</div>
+            <div class="panel-sub" id="panelSub">Välj varor nedan</div>
+            <div class="pdiv"></div>
+            <div class="panel-empty" id="panelEmpty">
+              <div class="pe-icon">🛒</div>
+              <div class="pe-lbl">Korgen är tom</div>
+              <div class="pe-hint">Tryck + för att lägga till</div>
+            </div>
+            <div class="oi-wrap" id="oiWrap" style="display:none;"></div>
+            <div id="panelSum" style="display:none;">
+              <div class="pdiv"></div>
+              <div class="sum-r"><span>Delsumma</span><span id="sSub">0 kr</span></div>
+              <div class="sum-r"><span>Moms 25%</span><span id="sVat">0 kr</span></div>
+              <div class="sum-r"><span>Serviceavgift</span><span class="sum-free">Gratis ✦</span></div>
+              <div class="sum-total"><span>Totalt</span><span class="sum-total-val" id="sTot">0 kr</span></div>
+              <button class="checkout-btn" id="payBtn" type="button">Betala med Swish →</button>
+              <div class="pay-note">🔒 Säker betalning · Kvitto via e-post</div>
             </div>
           </aside>
 
@@ -2908,6 +2896,19 @@
     }
 
     /* ── Receipt ID ── */
+    function getHighestReceiptId() {
+      // Scanna alla befintliga kvitton för att hitta högsta numret
+      try {
+        const receipts = loadReceipts();
+        let max = parseInt(localStorage.getItem(RECEIPT_COUNTER_KEY) || "0");
+        receipts.forEach(r => {
+          const idStr = String(r.id || "").replace(/^0+/, "");
+          const num = parseInt(idStr);
+          if (!isNaN(num) && num > max) max = num;
+        });
+        return max;
+      } catch(e) { return parseInt(localStorage.getItem(RECEIPT_COUNTER_KEY) || "0"); }
+    }
     async function getNextReceiptId() {
       // Atomär Firestore-räknare — garanterar unika nummer på alla enheter
       if (window._firestoreDb) {
@@ -2915,7 +2916,10 @@
           const counterRef = window._firestoreDb.collection("counters").doc("receipts");
           const newId = await window._firestoreDb.runTransaction(async (tx) => {
             const doc = await tx.get(counterRef);
-            let current = doc.exists ? (doc.data().current || 41) : 41;
+            let current = doc.exists ? (doc.data().current || 0) : 0;
+            // Säkerhetskoll: om lokala kvitton har högre nummer, använd det
+            const localMax = getHighestReceiptId();
+            if (localMax > current) current = localMax;
             if (current >= 9999) current = 1;
             const next = current + 1;
             tx.set(counterRef, { current: next }, { merge: true });
@@ -2927,8 +2931,8 @@
           console.warn("Firestore counter failed, using local fallback:", e);
         }
       }
-      // Lokalt fallback vid offline
-      let current = parseInt(localStorage.getItem(RECEIPT_COUNTER_KEY) || "41");
+      // Lokalt fallback vid offline — använd högsta befintliga nummer
+      let current = getHighestReceiptId();
       if (current >= 9999) current = 1;
       current += 1;
       localStorage.setItem(RECEIPT_COUNTER_KEY, String(current));
@@ -3094,16 +3098,24 @@
     const overviewView        = document.getElementById("overviewView");
     const categoryView        = document.getElementById("categoryView");
     const reportView          = document.getElementById("reportView");
-    const overviewGrid        = document.getElementById("overviewGrid");
+    const overviewGrid        = document.getElementById("overviewGrid"); // null in V5
     const offersGrid          = document.getElementById("offersGrid");
-    const backBtn             = document.getElementById("backBtn");
-    const categoryTitle       = document.getElementById("categoryTitle");
-    const productList         = document.getElementById("productList");
-    const cartItems           = document.getElementById("cartItems");
-    const itemCount           = document.getElementById("itemCount");
-    const totalAmount         = document.getElementById("totalAmount");
+    const backBtn             = document.getElementById("backBtn"); // null in V5
+    const categoryTitle       = document.getElementById("categoryTitle"); // null in V5
+    const productList         = document.getElementById("productList"); // null in V5
+    const cartItems           = document.getElementById("oiWrap");
+    const itemCount           = null; // No longer separate element in V5
+    const totalAmount         = document.getElementById("sTot");
     const clearBtn            = document.getElementById("clearBtn");
     const payBtn              = document.getElementById("payBtn");
+    const pgrid               = document.getElementById("pgrid");
+    const catWrap             = document.getElementById("catWrap");
+    const secTitle            = document.getElementById("secTitle");
+    const secCount            = document.getElementById("secCount");
+    const panelSub            = document.getElementById("panelSub");
+    const panelEmpty          = document.getElementById("panelEmpty");
+    const panelSum            = document.getElementById("panelSum");
+    const oiWrap              = document.getElementById("oiWrap");
     const hiddenReportTrigger = document.getElementById("hiddenReportTrigger");
     const reportLoginOverlay  = document.getElementById("reportLoginOverlay");
     const reportPasswordInput = document.getElementById("reportPasswordInput");
@@ -3132,6 +3144,30 @@
     const payMessageText      = document.getElementById("payMessageText");
     const payNumberText       = document.getElementById("payNumberText");
     const saveOffersBtn       = document.getElementById("saveOffersBtn");
+
+    /* ── V5 Accent color system ── */
+    const CAT_STYLE = {
+      mat:      { accent:'#ff6b35', bg:'#fff5f2', mid:'rgba(255,107,53,0.12)', imgBg:'#fff0eb' },
+      mellanmal:{ accent:'#22c55e', bg:'#f0fdf4', mid:'rgba(34,197,94,0.12)',  imgBg:'#ebfdf4' },
+      dryck:    { accent:'#3b82f6', bg:'#eff6ff', mid:'rgba(59,130,246,0.12)', imgBg:'#eaf3ff' },
+      snacks:   { accent:'#a855f7', bg:'#faf5ff', mid:'rgba(168,85,247,0.12)', imgBg:'#f6edff' },
+    };
+    let currentV5Cat = null;
+
+    function applyAccent(catKey) {
+      const s = CAT_STYLE[catKey];
+      if (!s) return;
+      document.documentElement.style.setProperty('--accent', s.accent);
+      document.documentElement.style.setProperty('--accent-bg', s.bg);
+      document.documentElement.style.setProperty('--accent-mid', s.mid);
+    }
+
+    // Set V5 date
+    const v5DateEl = document.getElementById("v5Date");
+    if (v5DateEl) {
+      const now = new Date();
+      v5DateEl.textContent = now.toLocaleDateString('sv-SE', { weekday: 'short', day: 'numeric', month: 'short' });
+    }
 
     /* ── Utilities ── */
     function formatKr(value) { return `${value} kr`; }
@@ -3256,23 +3292,30 @@
     function showView(name) {
       if (IS_MOBILE_VIEW) return;
       overviewView.classList.remove("active");
+      if (overviewView.style) overviewView.style.display = "none";
       categoryView.classList.remove("active");
       reportView.classList.remove("active");
-      if (name === "overview") overviewView.classList.add("active");
-      if (name === "category") categoryView.classList.add("active");
-      if (name === "report")   reportView.classList.add("active");
+      if (name === "overview") { overviewView.classList.add("active"); overviewView.style.display = "flex"; }
+      if (name === "category") { overviewView.classList.add("active"); overviewView.style.display = "flex"; } // Category is now part of overview
+      if (name === "report") { reportView.classList.add("active"); }
     }
     function openOverview() {
+      document.querySelector('.app-body').classList.remove('admin-active');
+      document.querySelector('.app').classList.remove('admin-mode-on');
       state.currentCategory = null;
       showView("overview");
       renderOverview();
     }
     function openCategory(catKey) {
       state.currentCategory = catKey;
-      showView("category");
-      renderCurrentCategory();
+      currentV5Cat = catKey;
+      applyAccent(catKey);
+      showView("overview"); // Stay on overview, just switch category
+      renderOverview();
     }
     function openReportView(mode = "7days") {
+      document.querySelector('.app-body').classList.add('admin-active');
+      document.querySelector('.app').classList.add('admin-mode-on');
       state.currentReportMode = mode;
       showView("report");
       showAdminSection(state.currentAdminSection);
@@ -3312,16 +3355,186 @@
       return CATEGORY_GRADIENTS[key] || "#d5ddd8";
     }
     function renderOverview() {
-      overviewGrid.innerHTML = categories.map((cat, idx) => `
-        <button class="category-card" data-category="${escapeHtml(cat.key)}" type="button"
-          style="background:${getCategoryGradient(cat.key)}">
-          <div class="category-card-emoji" style="animation-delay:${idx * 0.5}s">${getCategoryEmoji(cat.key)}</div>
-          <h2 class="category-card-name">${escapeHtml(cat.title)}</h2>
-          <p class="category-card-sub">${escapeHtml(cat.subtitle || "")}</p>
-          <div class="category-card-count">${cat.items.length} produkter</div>
-        </button>
-      `).join("");
+      // Render category tabs
+      if (catWrap) {
+        const CATEGORY_TAB_EMOJI = { mat:'🍽', mellanmal:'🥐', dryck:'🥤', snacks:'🍿' };
+        catWrap.innerHTML = categories.map(cat => {
+          const emoji = CATEGORY_TAB_EMOJI[cat.key] || getCategoryEmoji(cat.key);
+          const isActive = currentV5Cat === cat.key;
+          return `<div class="cat-tab${isActive ? ' on' : ''}" data-cat="${escapeHtml(cat.key)}">
+            <div class="ct-icon">${emoji}</div> ${escapeHtml(cat.title)}
+          </div>`;
+        }).join('');
+
+        // Tab click handlers
+        catWrap.querySelectorAll('.cat-tab').forEach(tab => {
+          tab.addEventListener('click', () => {
+            const key = tab.dataset.cat;
+            if (key === currentV5Cat) return;
+            currentV5Cat = key;
+            applyAccent(key);
+            catWrap.querySelectorAll('.cat-tab').forEach(t => t.classList.remove('on'));
+            tab.classList.add('on');
+            const cat = categories.find(c => c.key === key);
+            if (secTitle) secTitle.textContent = cat ? cat.title : key;
+            if (secCount) secCount.textContent = (cat ? cat.items.length : 0) + ' produkter';
+            animateV5Grid();
+          });
+        });
+      }
+
+      // Select first category by default
+      if (!currentV5Cat && categories.length > 0) {
+        currentV5Cat = categories[0].key;
+        applyAccent(currentV5Cat);
+      }
+
+      const cat = categories.find(c => c.key === currentV5Cat);
+      if (secTitle && cat) secTitle.textContent = cat.title;
+      if (secCount && cat) secCount.textContent = cat.items.length + ' produkter';
+
+      renderV5Grid();
       renderOffers();
+      renderPopularSection();
+    }
+
+    function animateV5Grid() {
+      if (!pgrid) { renderV5Grid(); return; }
+      pgrid.classList.add('exit');
+      setTimeout(() => {
+        pgrid.classList.remove('exit');
+        renderV5Grid();
+        pgrid.classList.add('enter');
+        setTimeout(() => pgrid.classList.remove('enter'), 400);
+      }, 180);
+    }
+
+    function renderPopularSection() {
+      const section = document.getElementById("popularSection");
+      const grid = document.getElementById("popularGrid");
+      const countEl = document.getElementById("popularCount");
+      if (!section || !grid) return;
+
+      try {
+        const receipts = loadReceipts();
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const todayReceipts = receipts.filter(r => {
+          if (r.status === "ej_registrerad") return false;
+          if (r.tagType) return false;
+          const t = new Date(r.time);
+          return t >= today;
+        });
+
+        const productCounts = new Map();
+        todayReceipts.forEach(r => {
+          (r.items || []).forEach(item => {
+            const key = item.name;
+            const existing = productCounts.get(key) || { name: item.name, qty: 0, categoryKey: item.categoryKey };
+            existing.qty += Number(item.qty || 0);
+            productCounts.set(key, existing);
+          });
+        });
+
+        const sorted = Array.from(productCounts.values()).sort((a, b) => b.qty - a.qty).slice(0, 6);
+
+        if (sorted.length === 0) {
+          section.style.display = "none";
+          return;
+        }
+
+        section.style.display = "block";
+        if (countEl) countEl.textContent = sorted.length + " produkter";
+
+        const FALLBACK_EMOJI = { mat:'🍽', mellanmal:'🥐', dryck:'🥤', snacks:'🍿' };
+        grid.innerHTML = sorted.map((p, i) => {
+          const emoji = FALLBACK_EMOJI[p.categoryKey] || '🛍';
+          let imgContent = '<span style="position:relative;z-index:1;font-size:36px;">' + emoji + '</span>';
+          categories.forEach(cat => {
+            cat.items.forEach(item => {
+              if (item.name === p.name && PRODUCT_IMAGES[item.id]) {
+                imgContent = '<img src="' + escapeHtml(PRODUCT_IMAGES[item.id]) + '" alt="' + escapeHtml(p.name) + '" style="height:44px;width:auto;object-fit:contain;position:relative;z-index:1;" />';
+              }
+            });
+          });
+
+          return '<div class="pcard" style="border-color:rgba(239,68,68,0.15);background:linear-gradient(135deg,#fff,#fef2f2);">' +
+            '<div class="pbadge pb-hot">#' + (i+1) + ' Såld ' + p.qty + ' st</div>' +
+            '<div class="pimg" style="background:#fef2f2;width:70px;height:70px;">' + imgContent + '</div>' +
+            '<div class="pname" style="font-size:11px;">' + escapeHtml(p.name) + '</div>' +
+            '</div>';
+        }).join('');
+      } catch(e) {
+        section.style.display = "none";
+      }
+    }
+
+    function renderV5Grid() {
+      if (!pgrid) return;
+      const cat = categories.find(c => c.key === currentV5Cat);
+      if (!cat || !cat.items.length) {
+        pgrid.innerHTML = '<div class="empty-text">Inga produkter i den här kategorin ännu.</div>';
+        return;
+      }
+      const s = CAT_STYLE[currentV5Cat] || CAT_STYLE.mat;
+      const bMap = {pop:'pb-pop',new:'pb-new',hot:'pb-hot'};
+      const bLbl = {pop:'Populär',new:'Nyhet',hot:'Trend'};
+      const FALLBACK_EMOJI = { mat:'🍽', mellanmal:'🥐', dryck:'🥤', snacks:'🍿' };
+      const catEmoji = FALLBACK_EMOJI[currentV5Cat] || '🛍';
+
+      pgrid.innerHTML = cat.items.map(item => {
+        const qty = getQty(cat.key, item.id);
+        const ic = qty > 0;
+        const src = PRODUCT_IMAGES[item.id];
+        const imgContent = src
+          ? `<img src="${escapeHtml(src)}" alt="${escapeHtml(item.name)}" style="height:54px;width:auto;object-fit:contain;position:relative;z-index:1;filter:drop-shadow(0 4px 10px rgba(0,0,0,0.15));" />`
+          : `<span style="position:relative;z-index:1;font-size:48px;">${catEmoji}</span>`;
+        const badge = item.badge ? `<div class="pbadge ${bMap[item.badge] || ''}">${bLbl[item.badge] || ''}</div>` : '';
+        return `
+          <div class="pcard${ic ? ' in-cart' : ''}" id="pc-${escapeHtml(cat.key)}-${escapeHtml(item.id)}" data-cat="${escapeHtml(cat.key)}" data-id="${escapeHtml(item.id)}">
+            ${badge}
+            <div class="ptick">✓</div>
+            <div class="pimg" style="background:${s.imgBg || s.bg};">
+              <div class="pimg-qty" id="pq-${escapeHtml(cat.key)}-${escapeHtml(item.id)}">${qty || ''}</div>
+              ${imgContent}
+            </div>
+            <div class="pname">${escapeHtml(item.name)}</div>
+            <div class="psub">${escapeHtml(item.note || '')}</div>
+            <div class="pfoot">
+              <div class="pprice">${escapeHtml(String(item.price))}<span class="pprice-kr"> kr</span></div>
+              <button class="padd" data-cat="${escapeHtml(cat.key)}" data-id="${escapeHtml(item.id)}" type="button">+</button>
+            </div>
+          </div>`;
+      }).join('');
+
+      // 3D tilt effect
+      pgrid.querySelectorAll('.pcard').forEach(card => {
+        card.addEventListener('mousemove', e => {
+          const r = card.getBoundingClientRect();
+          const x = (e.clientX - r.left) / r.width - 0.5;
+          const y = (e.clientY - r.top) / r.height - 0.5;
+          card.style.transform = `perspective(600px) rotateY(${x*14}deg) rotateX(${-y*10}deg) translateY(-4px)`;
+        });
+        card.addEventListener('mouseleave', () => { card.style.transform = ''; });
+      });
+
+      // Add button click handlers
+      pgrid.querySelectorAll('.padd').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          btn.classList.add('rippling');
+          setTimeout(() => btn.classList.remove('rippling'), 450);
+          const catKey = btn.dataset.cat;
+          const itemId = btn.dataset.id;
+          updateQty(catKey, itemId, 1);
+          const card = document.getElementById(`pc-${catKey}-${itemId}`);
+          if (card) {
+            card.classList.add('in-cart');
+            const qEl = document.getElementById(`pq-${catKey}-${itemId}`);
+            if (qEl) qEl.textContent = getQty(catKey, itemId);
+          }
+        });
+      });
     }
     function renderOffers() {
       const offers = loadOffers();
@@ -3418,7 +3631,10 @@
       if (!state.currentCategory) return;
       const cat = categories.find(c => c.key === state.currentCategory);
       if (!cat) return;
-      categoryTitle.textContent = cat.title;
+      // V5: use renderV5Grid instead
+      if (pgrid) { renderV5Grid(); return; }
+      if (categoryTitle) categoryTitle.textContent = cat.title;
+      if (!productList) return;
       if (!cat.items.length) {
         productList.innerHTML = `<div class="empty-text">Inga produkter i den här kategorin ännu.</div>`;
         return;
@@ -3489,47 +3705,54 @@
     }
     function renderSummary() {
       const { cart, totalItems, total } = getTotals();
+
+      if (panelSub) {
+        panelSub.textContent = totalItems
+          ? `${totalItems} vara${totalItems === 1 ? '' : 'r'} i korgen`
+          : 'Välj varor nedan';
+      }
+
       if (!cart.length) {
-        cartItems.innerHTML = `<div class="cart-empty">Inga produkter valda ännu.</div>`;
-      } else {
-        // Group items by ID to show stack count
-        const grouped = new Map();
-        cart.forEach(it => {
-          const key = it.ärErbjudande ? `offer-${it.itemId}` : `${it.categoryKey}__${it.itemId}`;
-          if (!grouped.has(key)) {
-            grouped.set(key, { ...it, count: 0 });
-          }
-          grouped.get(key).count += 1;
-        });
+        if (panelEmpty) panelEmpty.style.display = 'flex';
+        if (oiWrap) oiWrap.style.display = 'none';
+        if (panelSum) panelSum.style.display = 'none';
+        if (clearBtn) clearBtn.disabled = true;
+        if (payBtn) payBtn.disabled = true;
+        return;
+      }
 
-        cartItems.innerHTML = Array.from(grouped.values()).map(it => {
-          const tagHtml = it.ärErbjudande ? `<span style="display:inline-block;background:#f0c040;color:#322D29;font-size:11px;padding:3px 8px;border-radius:4px;font-weight:bold;">🏷 Paket</span>` : '';
-          const countDisplay = it.count > 1 ? `<span style="font-size:12px;color:#6b7c74;margin-left:6px;">(${it.count} st)</span>` : '';
-          const cartKey = it.ärErbjudande ? `offer-${it.itemId}` : `prod-${it.categoryKey}-${it.itemId}`;
+      if (panelEmpty) panelEmpty.style.display = 'none';
+      if (oiWrap) oiWrap.style.display = 'flex';
+      if (panelSum) panelSum.style.display = 'block';
+
+      // Build cart items with V5 styling
+      const FALLBACK_EMOJI = { mat:'🍽', mellanmal:'🥐', dryck:'🥤', snacks:'🍿' };
+      if (oiWrap) {
+        oiWrap.innerHTML = cart.map(it => {
+          const emoji = it.ärErbjudande ? '🏷' : (FALLBACK_EMOJI[it.categoryKey] || '🛍');
+          const tagHtml = it.ärErbjudande ? ' <span style="font-size:9px;background:#f0c040;color:#322D29;padding:1px 5px;border-radius:4px;font-weight:bold;">Paket</span>' : '';
           return `
-            <div class="cart-row" data-cart-key="${escapeHtml(cartKey)}">
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;">
-                <div style="flex:1;">
-                  <div style="margin-bottom:${tagHtml ? '4px' : '0'};">${escapeHtml(it.qty)} × ${escapeHtml(it.name)}${countDisplay}</div>
-                  ${tagHtml}
-                </div>
-                <div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
-                  <button class="cart-qty-btn" data-action="minus" data-type="${it.ärErbjudande ? 'offer' : 'prod'}" data-cat="${escapeHtml(it.categoryKey)}" data-id="${escapeHtml(it.itemId)}" style="width:24px;height:24px;border:1px solid rgba(0,0,0,.1);background:#f0f4f2;border-radius:4px;color:#2c3e35;font-weight:bold;cursor:pointer;font-size:16px;">−</button>
-                  <button class="cart-qty-btn" data-action="plus" data-type="${it.ärErbjudande ? 'offer' : 'prod'}" data-cat="${escapeHtml(it.categoryKey)}" data-id="${escapeHtml(it.itemId)}" style="width:24px;height:24px;border:1px solid rgba(0,0,0,.1);background:#f0f4f2;border-radius:4px;color:#2c3e35;font-weight:bold;cursor:pointer;font-size:16px;">+</button>
-                  <strong style="font-size:14px;min-width:40px;text-align:right;">${escapeHtml(it.sum)} kr</strong>
-                </div>
+            <div class="oi">
+              <div class="oi-img">${emoji}</div>
+              <div class="oi-info">
+                <div class="oi-name">${escapeHtml(it.name)}${tagHtml}</div>
+                <div class="oi-price">${it.sum} kr</div>
               </div>
-            </div>
-          `;
-        }).join("");
+              <div class="oi-ctrl">
+                <button class="oib" data-action="minus" data-type="${it.ärErbjudande ? 'offer' : 'prod'}" data-cat="${escapeHtml(it.categoryKey)}" data-id="${escapeHtml(it.itemId)}" type="button">−</button>
+                <span class="oiq">${it.qty}</span>
+                <button class="oib" data-action="plus" data-type="${it.ärErbjudande ? 'offer' : 'prod'}" data-cat="${escapeHtml(it.categoryKey)}" data-id="${escapeHtml(it.itemId)}" type="button">+</button>
+              </div>
+            </div>`;
+        }).join('');
 
-        // Attach event listeners to qty buttons
-        document.querySelectorAll(".cart-qty-btn").forEach(btn => {
-          btn.addEventListener("click", (e) => {
+        // Qty button handlers
+        oiWrap.querySelectorAll('.oib').forEach(btn => {
+          btn.addEventListener('click', () => {
             const type = btn.dataset.type;
             const action = btn.dataset.action;
-            const delta = action === "minus" ? -1 : 1;
-            if (type === "offer") {
+            const delta = action === 'minus' ? -1 : 1;
+            if (type === 'offer') {
               updateOfferQty(btn.dataset.id, delta);
             } else {
               updateQty(btn.dataset.cat, btn.dataset.id, delta);
@@ -3537,10 +3760,18 @@
           });
         });
       }
-      itemCount.textContent = totalItems;
-      totalAmount.textContent = formatKr(total);
-      clearBtn.disabled = cart.length === 0;
-      payBtn.disabled = cart.length === 0;
+
+      const subtotal = total;
+      const vat = Math.round(subtotal * 0.2);
+      const subEl = document.getElementById('sSub');
+      const vatEl = document.getElementById('sVat');
+      const totEl = document.getElementById('sTot');
+      if (subEl) { subEl.textContent = subtotal + ' kr'; subEl.classList.remove('counting'); void subEl.offsetWidth; subEl.classList.add('counting'); }
+      if (vatEl) { vatEl.textContent = vat + ' kr'; }
+      if (totEl) { totEl.textContent = subtotal + ' kr'; totEl.classList.remove('counting'); void totEl.offsetWidth; totEl.classList.add('counting'); }
+
+      if (clearBtn) clearBtn.disabled = false;
+      if (payBtn) payBtn.disabled = false;
     }
 
     /* ── Payment modal ── */
@@ -3697,7 +3928,7 @@
       state.qty = {};
       state.offerCart = [];
       renderSummary();
-      renderCurrentCategory();
+      renderV5Grid();
     }
     function closePaymentModal({ recordSaleOnClose = false } = {}) {
       if (state.paymentTimer) clearTimeout(state.paymentTimer);
@@ -3717,7 +3948,6 @@
 
     /* ── Admin login ── */
     function openReportLogin() {
-      if (!overviewView.classList.contains("active")) return;
       reportLoginError.textContent = "";
       reportPasswordInput.value = "";
       reportLoginOverlay.classList.add("active");
@@ -4619,13 +4849,13 @@
     });
 
     /* ── Event wiring ── */
-    overviewGrid.addEventListener("click", e => {
+    if (overviewGrid) overviewGrid.addEventListener("click", e => {
       const card = e.target.closest("[data-category]");
       if (!card) return;
       openCategory(card.dataset.category);
     });
-    backBtn.addEventListener("click", () => openOverview());
-    productList.addEventListener("click", e => {
+    if (backBtn) backBtn.addEventListener("click", () => openOverview());
+    if (productList) productList.addEventListener("click", e => {
       const btn = e.target.closest("button[data-action]");
       if (!btn) return;
       const catKey = btn.dataset.category;
@@ -4634,8 +4864,8 @@
       if (btn.dataset.action === "plus")  setQty(catKey, itemId, cur + 1);
       else                                setQty(catKey, itemId, cur - 1);
     });
-    clearBtn.addEventListener("click", () => closePaymentModal({ recordSaleOnClose: false }));
-    payBtn.addEventListener("click", () => openPaymentModal());
+    if (clearBtn) clearBtn.addEventListener("click", () => closePaymentModal({ recordSaleOnClose: false }));
+    if (payBtn) payBtn.addEventListener("click", () => openPaymentModal());
     document.getElementById("payRegisterBtn").addEventListener("click", () => {
       const cart = getCart();
       const total = cart.reduce((s,i) => s + i.sum, 0);
@@ -4655,6 +4885,46 @@
       if (e.target === payOverlay) closePaymentModal({ recordSaleOnClose: false });
     });
     hiddenReportTrigger.addEventListener("click", () => openReportLogin());
+    // V5 sidebar gear icon opens admin
+    const sidebarSettings = document.getElementById("sidebarSettings");
+    if (sidebarSettings) {
+      sidebarSettings.addEventListener("click", () => openReportLogin());
+    }
+    // V5 sidebar wish icon (removed from sidebar, guard kept)
+    const sidebarWish = document.getElementById("sidebarWish");
+    if (sidebarWish) {
+      sidebarWish.addEventListener("click", () => {
+        const wishOverlay = document.getElementById("wishOverlay");
+        if (wishOverlay) { wishOverlay.classList.add("active"); wishOverlay.setAttribute("aria-hidden", "false"); }
+      });
+    }
+    // V5 sidebar home icon
+    const sidebarHome = document.getElementById("sidebarHome");
+    if (sidebarHome) {
+      sidebarHome.addEventListener("click", () => {
+        document.querySelector('.app-body').classList.remove('admin-active');
+        document.querySelector('.app').classList.remove('admin-mode-on');
+        showView("overview");
+        renderOverview();
+      });
+    }
+    // V5 sidebar popular icon
+    const sidebarPopular = document.getElementById("sidebarPopular");
+    if (sidebarPopular) {
+      sidebarPopular.addEventListener("click", () => {
+        if (!overviewView.classList.contains("active")) {
+          showView("overview");
+          renderOverview();
+        }
+        renderPopularSection();
+        const section = document.getElementById("popularSection");
+        const feed = document.getElementById("customerFeed");
+        if (section && feed) {
+          section.style.display = "block";
+          section.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      });
+    }
     reportLoginCancelBtn.addEventListener("click", () => closeReportLogin());
     reportLoginConfirmBtn.addEventListener("click", () => tryReportLogin());
     reportPasswordInput.addEventListener("keydown", e => {
@@ -4689,9 +4959,11 @@
       exitFn();
     }
 
-    reportLogoutBtn.addEventListener("click", () => {
+    reportLogoutBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
       if (IS_MOBILE_VIEW) {
         tryAdminLogout(() => {
+          document.querySelector('.app-body').classList.remove('admin-active');
           document.querySelector(".viewport").style.display = "none";
           document.getElementById("mobileApp").style.display = "block";
           document.getElementById("mobileAdminPanel").style.display = "block";
