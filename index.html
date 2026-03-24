@@ -2142,7 +2142,7 @@
             <div id="panelSum" style="display:none;">
               <div class="pdiv"></div>
               <div class="sum-r"><span>Delsumma</span><span id="sSub">0 kr</span></div>
-              <div class="sum-r"><span>Moms 25%</span><span id="sVat">0 kr</span></div>
+              <div class="sum-r"><span>Moms 12%</span><span id="sVat">0 kr</span></div>
               <div class="sum-r"><span>Serviceavgift</span><span class="sum-free">Gratis ✦</span></div>
               <div class="sum-total"><span>Totalt</span><span class="sum-total-val" id="sTot">0 kr</span></div>
               <button class="checkout-btn" id="payBtn" type="button">Betala med Swish →</button>
@@ -3762,7 +3762,7 @@
       }
 
       const subtotal = total;
-      const vat = Math.round(subtotal * 0.2);
+      const vat = Math.round(subtotal * 0.12);
       const subEl = document.getElementById('sSub');
       const vatEl = document.getElementById('sVat');
       const totEl = document.getElementById('sTot');
